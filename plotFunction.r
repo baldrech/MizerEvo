@@ -1477,8 +1477,10 @@ plotTraits <- function(object, maturationSize = T, ppmr = T, dietBreadth = T, pr
 
 
 # multi plots, will be included in the previous function
-plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 600, SpIdx = NULL, Mat = T, PPMR = T, Sig = T, returnData =F, comments = T,window = NULL,Wmat = NULL)
+plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 600, SpIdx = NULL, Mat = T, PPMR = T, Sig = T, returnData =F, comments = T, window = NULL, Wmat = NULL, TimeMax = NULL)
 {
+  dt = 0.1 # because it is always here somewhere
+  
   if (comments) cat("plotTraitsMulti begins\n") 
   
   if (is.null(SpIdx)) SpIdx <- seq(1,9)
@@ -1501,24 +1503,29 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     }
   }
   
+  if (is.null(TimeMax)) TimeMax = 4e4 #default initialisation period
+  TimeMax <- (SumPar$timeMax[i] + TimeMax) * dt
+  
   # beforehand
   if (save_it & is.null(dir))  # if want to save but not specified where
     dir = paste(getwd(),"/temporary",sep = "")
   
   ifelse(!dir.exists(file.path(dir)), dir.create(file.path(dir)), FALSE) #create the file if it does not exists
   
-  #if (class(object) == list) #this mean that I have more than one sim and must do the average value
   if (comments) cat(sprintf("Starting trait plot\n"))
   
   # prepare the data
   # little initialisation 
   SumPar = object@params@species_params #shortcut
   TT = cbind(SumPar$species,as.numeric(SumPar$ecotype),0.1*SumPar$pop,0.1*SumPar$extinct,SumPar$w_mat,SumPar$beta,SumPar$sigma) # weird things happen without the as.numeric / *0.1 because dt
-  colnames(TT) = c("Lineage","Ecotype","Apparition","Extinction","Maturation_size","PPMR","Diet_breadth")
+  colnames(TT) = c("Species","Phenotype","Apparition","Extinction","Maturation_size","PPMR","Width_Feed")
   rownames(TT) = rownames(SumPar)
   TT = TT[order(TT[,1],decreasing=FALSE),]
   TT = as.data.frame(TT) # I use TT later in the graphs (its like an artefact)
-  for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = SumPar$timeMax[i]*0.1
+  
+  # because I am starting simulations with previous abundance but not updating the time max (because I forgot and I do not want to run all my sims again) I need to do it here (which will disapear once I do the update in model.r)
+  
+  for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = TimeMax
   
   if (is.null(window)) window = c(-1,1)
   if (comments) cat(sprintf("windows set from %g to %g\n",window[1],window[2]))
@@ -1621,12 +1628,12 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     {
       stat = statMS[[i]] # take the stats of the right species
       
-      phenotype = TT[TT$Lineage == i,3:5] # recup the traits time values
+      phenotype = TT[TT$Species == i,3:5] # recup the traits time values
       Phen = melt(phenotype,"Maturation_size") # make the dataframe
       #name = paste("Maturation size of species ",i, sep = "")
       
       #short cut the data frame when species does not reach end of simulation
-      if (sum(which(Phen$value == SumPar$timeMax[[1]]*0.1)) == 0) # if there is at least one value equal to the end of the sim it means that the species survived until then
+      if (sum(which(Phen$value == TimeMax)) == 0) # if there is at least one value equal to the end of the sim it means that the species survived until then
         stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
       
       name = paste("Species",i, sep = " ")
@@ -1650,7 +1657,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             #scale_y_continuous(name = name, limits = c(-0.3,0.3), breaks = c(-0.3,-0.2,-0.1,0,0.1,0.2,0.3)) + #how can seq() be so bad at his only job
             scale_y_continuous(name = name, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             
@@ -1666,7 +1673,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
             scale_y_continuous(name = name, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1679,7 +1686,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             scale_y_continuous(name = name, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1694,7 +1701,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
           theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                 panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                 legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-          scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+          scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
           scale_y_continuous(name = name, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
           ggtitle("Maturation size (g)")
       }
@@ -1747,12 +1754,12 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     {
       stat = statPPMR[[i]] # take the stats of the right species
       
-      phenotype = TT[TT$Lineage == i,c(3,4,6)] # recup the traits time values
+      phenotype = TT[TT$Species == i,c(3,4,6)] # recup the traits time values
       Phen = melt(phenotype,"PPMR") # make the dataframe
       #name = paste("PPMR of species ",i, sep = "")
       
       #short cut the data frame when species does not reach end of simulation
-      if (sum(which(Phen$value == SumPar$timeMax[[1]]*0.1)) == 0) # if there is at least one value equal to the end of the sime it means that the species survived until then
+      if (sum(which(Phen$value == TimeMax)) == 0) # if there is at least one value equal to the end of the sime it means that the species survived until then
         stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
       
       # prepare the data for the ribbon
@@ -1775,7 +1782,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle("b)")
           
@@ -1791,7 +1798,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1805,7 +1812,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1819,7 +1826,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
           geom_ribbon(data = dfRibbon, aes(x = x, ymin = ymin, ymax = ymax),
                       fill = "grey", alpha = 0.4)+
           geom_hline(yintercept = stat$mean[1], linetype = "dashed") +
-          scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+          scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
           scale_y_continuous(name = NULL) +
           scale_colour_discrete(labels = c("mean","standard deviation"))+
           theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
@@ -1835,7 +1842,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       
     }
   }
-  # wIDTH FEEDING KERNEL
+  # WIDTH FEEDING KERNEL
   if (Sig)
   {
     abundanceT = sweep(abundanceNormal,2,SumPar$sigma,"*") # I use the normalised abundance and multiply by the trait value
@@ -1882,12 +1889,12 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       stat$up = stat$mean + stat$sd
       stat$low = stat$mean - stat$sd
       
-      phenotype =  TT[TT$Lineage == i,c(3,4,7)] # recup the traits time values
+      phenotype =  TT[TT$Species == i,c(3,4,7)] # recup the traits time values
       Phen = melt(phenotype,"Diet_breadth") # make the dataframe
       #name = paste("Diet breadth of species ",i, sep = "")
       
       #short cut the data frame when species does not reach end of simulation
-      if (sum(which(Phen$value == SumPar$timeMax[[1]]*0.1)) == 0) # if there is at least one value equal to the end of the sime it means that the species survived until then
+      if (sum(which(Phen$value == TimeMax)) == 0) # if there is at least one value equal to the end of the sime it means that the species survived until then
         stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
       
       # prepare the data for the ribbon
@@ -1910,7 +1917,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle("c)")
           
@@ -1926,7 +1933,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1940,7 +1947,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
             theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
                   panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
                   legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend; things below change depending on the graph position
-            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,SumPar$timeMax[i]*0.1)) +
+            scale_x_continuous(labels = NULL, name = NULL, limits  = c(0,TimeMax)) +
             scale_y_continuous(name = NULL, limits = window, breaks = seq(window[1],window[2],0.1)) + #how can seq() be so bad at his only job
             ggtitle(NULL)
         }
@@ -1954,7 +1961,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
           geom_ribbon(data = dfRibbon, aes(x = x, ymin = ymin, ymax = ymax),
                       fill = "grey", alpha = 0.4)+
           geom_hline(yintercept = stat$mean[1], linetype = "dashed") +
-          scale_x_continuous(name = "Time (yr)", limits  = c(0,SumPar$timeMax[i]*0.1)) +
+          scale_x_continuous(name = "Time (yr)", limits  = c(0,TimeMax)) +
           scale_y_continuous(name = NULL) +
           scale_colour_discrete(labels = c("mean","standard deviation"))+
           theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
@@ -2015,18 +2022,19 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   normalData = F # to determine what data I have
   fisheriesData = F
   
-  if (Mat) # get the initial wmat values
-  {
+ # get the initial wmat and Time max values
+  
     if(dir.exists(file.path(paste(directory,"/init",sep=""))))
     {
       WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
       Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+      TimeMax = WmatSim@params@species_params$timeMax[1]
       if (comments) {
         cat("Wmat is")
         print(Wmat)}
-    } else {cat("Could not find Wmat values, taking the default ones\n")}
-  }
+    } else {cat("Could not find Wmat not TimeMax values, taking the default ones\n")}
   
+
   if(init) #if I want to plot the initialisation part
   {
     if(dir.exists(file.path(paste(directory,"/init",sep=""))))
@@ -2074,7 +2082,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     for (i in 1:length(normalList))
     {
       if (comments) cat(sprintf("Using run %g\n",i))
-      normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat)
+      normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
     }
     if (comments) cat("Plots loaded")
     speciesListN <- list()
@@ -2107,7 +2115,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     fishTraitsList <- list()
     for (i in 1:length(fishList)){
       if (comments) cat(sprintf("Using run %g\n",i))
-      fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat)
+      fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
     }
     if (comments) cat("Plots loaded")
     speciesListF <- list()
