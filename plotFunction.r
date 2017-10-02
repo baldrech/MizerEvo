@@ -1477,20 +1477,30 @@ plotTraits <- function(object, maturationSize = T, ppmr = T, dietBreadth = T, pr
 
 
 # multi plots, will be included in the previous function
-plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 600, SpIdx = c(1,2,3,4,5,6,7,8,9), Mat = T, PPMR = T, Sig = T, returnData =F, comments = T,window = NULL)
+plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 600, SpIdx = NULL, Mat = T, PPMR = T, Sig = T, returnData =F, comments = T,window = NULL,Wmat = NULL)
 {
   if (comments) cat("plotTraitsMulti begins\n") 
-  #temporary solution to the fact that I lose my original trait value when I do runs in a row
-  Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-  #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-  Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
   
-  if (sum(SpIdx == c(1,2,3)) == length(SpIdx)) Wmat = c(5,50,500)
+  if (is.null(SpIdx)) SpIdx <- seq(1,9)
+  if (comments) 
+   {cat("SpIdx set to:")
+  print(SpIdx)}
   
-  if (comments) {
-    cat("Wmat is")
-    print(Wmat)
+  # determine the initial maturation size for normalisation purpose
+  if (Mat && is.null(Wmat))
+  {
+    #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
+    #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
+    # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
+    if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
+    if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
+    
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)
+    }
   }
+  
   # beforehand
   if (save_it & is.null(dir))  # if want to save but not specified where
     dir = paste(getwd(),"/temporary",sep = "")
@@ -1559,7 +1569,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   plotMatStore <- list()
   plotPPMRStore <- list()
   plotDBStore <- list()
-  # Maturation size
+  
+  # MATURATION SIZE
   if (Mat)
   {
     abundanceT = sweep(abundanceNormal,2,SumPar$w_mat,"*") # I use the normalised abundance and multiply by the trait value
@@ -1619,7 +1630,6 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
         stat = stat[-which(stat$mean == 0),] # first occurence of mean = 0, meaning dead
       
       name = paste("Species",i, sep = " ")
-      
       
       # prepare the data for the ribbon
       g1 <- ggplot(stat)+
@@ -1825,7 +1835,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       
     }
   }
-  # Diet breath
+  # wIDTH FEEDING KERNEL
   if (Sig)
   {
     abundanceT = sweep(abundanceNormal,2,SumPar$sigma,"*") # I use the normalised abundance and multiply by the trait value
@@ -1967,7 +1977,6 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   # construction of the multiplot
   if (PPMR == F & Sig == F)
   {
-    #png(filename=path_to_png,width = 30, height = 30, units = "cm",res = 1000)
     rowPos = rep(c(1,2,3),3)
     colPos = c(rep(1,3),rep(2,3),rep(3,3))
     grid.newpage() 
@@ -1992,14 +2001,6 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
                    plotDBStore[[6]],plotDBStore[[7]],plotDBStore[[8]],plotDBStore[[9]],
                    cols=3)
   }
-  #p <- multiplot(plotMatStore[[2]],
-  # plotPPMRStore[[2]],
-  # plotDBStore[[2]],
-  # cols=3)
-  
-  # res = 800
-  # mytitle = paste("trait",".png", sep = "")
-  # dev.print(png, mytitle, width = res, height = 2/3* res)
   
   return(p)
   
@@ -2014,6 +2015,18 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   normalData = F # to determine what data I have
   fisheriesData = F
   
+  if (Mat) # get the initial wmat values
+  {
+    if(dir.exists(file.path(paste(directory,"/init",sep=""))))
+    {
+      WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
+      Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+      if (comments) {
+        cat("Wmat is")
+        print(Wmat)}
+    } else {cat("Could not find Wmat values, taking the default ones\n")}
+  }
+  
   if(init) #if I want to plot the initialisation part
   {
     if(dir.exists(file.path(paste(directory,"/init",sep=""))))
@@ -2026,7 +2039,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
       for (i in 1:length(normalList))
       {
         if (comments) cat(sprintf("Using run %g\n",i))
-        normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx)
+        normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat)
       }
       if (comments) cat("Plots loaded")
       speciesListN <- list()
@@ -2061,7 +2074,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     for (i in 1:length(normalList))
     {
       if (comments) cat(sprintf("Using run %g\n",i))
-      normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx)
+      normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat)
     }
     if (comments) cat("Plots loaded")
     speciesListN <- list()
@@ -2094,7 +2107,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     fishTraitsList <- list()
     for (i in 1:length(fishList)){
       if (comments) cat(sprintf("Using run %g\n",i))
-      fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx)
+      fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat)
     }
     if (comments) cat("Plots loaded")
     speciesListF <- list()
@@ -2136,7 +2149,8 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     for (i in SpIdx) # do the plots for each species and traits
     {
       if (comments) cat(sprintf("plot %i\n",i))
-      if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
+      # if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
+      title = NULL
       
       if (Mat){
         plotMatStore[[i]] <-ggplot(speciesListN[[i]])+
@@ -2225,7 +2239,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   
   
   
-  if (comments) print("plot done, starting the multiplot")
+  if (comments) cat("plot done, starting the multiplot\n")
   # do the multiplot
    if (init) path_to_png = paste(directory,"/TraitInit.png",sep="") else path_to_png = paste(directory,"/Trait.png",sep="")
   
@@ -2235,17 +2249,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     rowPos = rep(1:gridID[1,length(SpIdx)],gridID[2,length(SpIdx)])
     colPos = NULL
     for (i in 1:gridID[2,length(SpIdx)]) colPos = c(colPos,rep(i,gridID[1,length(SpIdx)]))
-    # 
-    # 
-    #  colPos = rep(1,gridID[1,length(SpIdx)])
-    # 
-    # rowPos = 1:gridID[1,length(SpIdx)]
-    # ColPos = 1:gridID[2,length(SpIdx)]
-    # 
-    # gridID[1,length(SpIdx)]
-    # 
-    # rowPos = rowID[1:length(SpIdx)] # adapting the grid to how many plots there are
-    # colPos = colID[1:length(SpIdx)]
+
     noRow = rowPos[length(rowPos)] # last value to determine number of row/col
     noCol = colPos[length(colPos)]
     
@@ -2278,7 +2282,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     }
   }
   dev.off()
-  if(comments) print(toc())
+  if(comments) toc()
   
 }
 
@@ -2651,7 +2655,7 @@ plotPerformance <- function(object)
 
 
 # plot survival en reproduction success and show the lifetime reprod sucess depending on w_mat and sigma
-plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData = F, save_it = F, SpIdx = NULL,Mat = T, PPMR = T, Sigma = T, comments = T, window = c(-1,1))
+plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData = F, save_it = F, SpIdx = NULL,Mat = T, PPMR = T, Sigma = T, comments = T, window = c(-1,1), Wmat = NULL)
 {
   if (comments) cat("plotFitness begins\n")
   if (comments) cat("starting fitness plots\n")
@@ -2664,15 +2668,22 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
-  if (sum(SpIdx == seq(1,9)) == length(SpIdx)) W_mat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-  #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-  #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
-  if (sum(SpIdx == c(1,2,3)) == length(SpIdx)) W_mat = c(5,50,500)
+  # determine the initial maturation size for normalisation purpose
+  if (Mat && is.null(Wmat))
+  {
+    #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
+    #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
+  # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
+  if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
+  if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
   
   if (comments) {
     cat("Wmat is")
-    print(W_mat)
+    print(Wmat)
   }
+  }
+  
+
   
   listOutput = list()
   for (x in 1:length(listObject))
@@ -2798,7 +2809,7 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
       
       #normalise the data here
       #plot_dat3$w_mat = (plot_dat3$w_mat- SumPar$w_mat[i])/plot_dat3$w_mat
-      plot_dat3$w_mat = (plot_dat3$w_mat- W_mat[i])/plot_dat3$w_mat
+      plot_dat3$w_mat = (plot_dat3$w_mat- Wmat[i])/plot_dat3$w_mat
       
       
       p3 <-ggplot(plot_dat3)+
@@ -2899,7 +2910,7 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
 }
 
 # do the multiplot of plotFitness across several run of the same type in the same folder
-plotFitnessMulti <- function(folder, returnData = F, SpIdx = NULL, Mat = T, Sig = T, PPMR = T, comments = T, whatTime = NULL, window = c(-1,1))
+plotFitnessMulti <- function(folder, returnData = F, SpIdx = NULL, Mat = T, Sig = T, PPMR = T, comments = T, whatTime = NULL, window = c(-1,1), Wmat = NULL)
 {
   if (comments) cat("plotFitnessMulti begins\n")
   
@@ -2914,7 +2925,7 @@ plotFitnessMulti <- function(folder, returnData = F, SpIdx = NULL, Mat = T, Sig 
   if (comments) cat(sprintf("time selected is %g\n",whatTime))
   
   if (is.null(SpIdx)) SpIdx = unique(listOfSim[[1]]@params@species_params$species)
-  fitnessOutput = plotFitness(listOfSim, returnData = T, SpIdx = SpIdx, Sigma = Sig, whatTime = whatTime, window = window) #get the fitness data for plots
+  fitnessOutput = plotFitness(listOfSim, returnData = T, SpIdx = SpIdx, Sigma = Sig, PPMR = PPMR, whatTime = whatTime, window = window, Wmat = Wmat) #get the fitness data for plots
   if (comments) cat("fitness data obtained\n")
   SumPar = listOfSim[[1]]@params@species_params #shortcut
   
@@ -3030,12 +3041,25 @@ plotFitnessMultiOverlap <- function(directory, SpIdx = NULL, Mat = T, PPMR = T, 
   normalData = F # to determine what data I have
   fisheriesData = F
   
+  if (Mat) # get the initial wmat values
+  {
+    if(dir.exists(file.path(paste(directory,"/init",sep=""))))
+    {
+      WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
+    Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)}
+    } else {cat("Could not find Wmat values, taking the default ones\n")}
+  }
+  
+  
   #NO FISHERIES PART
   if(dir.exists(file.path(paste(directory,"/normal",sep=""))))
   {
     normalData = T
     if (comments) cat("Simulations without fisheries\n")
-    plotListNormal <- plotFitnessMulti(folder = paste(directory,"/normal",sep=""),returnData = T, SpIdx = SpIdx, Mat = Mat, PPMR = PPMR, Sig = Sig, window = window)
+    plotListNormal <- plotFitnessMulti(folder = paste(directory,"/normal",sep=""),returnData = T, SpIdx = SpIdx, Mat = Mat, PPMR = PPMR, Sig = Sig, window = window, Wmat = Wmat)
     # it should give me a list of 3: plotwmat,plotsigma,plotppmr
   }
   #FISHERIES PART
@@ -3043,7 +3067,7 @@ plotFitnessMultiOverlap <- function(directory, SpIdx = NULL, Mat = T, PPMR = T, 
   {
     fisheriesData = T
     if (comments) cat("Simulations with fisheries\n")
-    plotListFish <- plotFitnessMulti(folder = paste(directory,"/fisheries",sep=""),returnData = T, SpIdx = SpIdx, Mat = Mat, PPMR = PPMR, Sig = Sig, window = window)
+    plotListFish <- plotFitnessMulti(folder = paste(directory,"/fisheries",sep=""),returnData = T, SpIdx = SpIdx, Mat = Mat, PPMR = PPMR, Sig = Sig, window = window, Wmat = Wmat)
   }
   
   plotMatStore = list()
@@ -3059,7 +3083,8 @@ plotFitnessMultiOverlap <- function(directory, SpIdx = NULL, Mat = T, PPMR = T, 
       
       if (comments) cat(sprintf("Plot for species %g\n",i))
       
-      if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
+      #if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
+      title = NULL
       
       if (Mat){
         if(!is.null(plotListNormal[[1]][[i]])) plot_datN_mat <- ggplot_build(plotListNormal[[1]][[i]]) else plot_datN_mat = NULL
@@ -3186,25 +3211,25 @@ plotFitnessMultiOverlap <- function(directory, SpIdx = NULL, Mat = T, PPMR = T, 
   cat("final Spidx is set to:")
   print(SpIdx)
   
-  
-  
-  
   path_to_png = paste(directory,"/fitnessMulti.png",sep="")
+  
   if (PPMR == F & Sig == F)
   {
-    rowID = c(1,rep(2,3),rep(3,5)) # how the plots are positionned on a grid
-    colID = c(rep(1,2),rep(2,4),rep(3,3))
-    rowPos = rowID[1:length(SpIdx)] # adapting the grid to how many plots there are
-    colPos = colID[1:length(SpIdx)]
+    gridID = matrix(c(1,rep(2,3),rep(3,5),rep(1,2),rep(2,4),rep(3,3)), nrow = 2, ncol = 9,byrow = T, dimnames = list(c("nRow","nCol"),seq(1,9))) # grid dimension depending on sp number
+    rowPos = rep(1:gridID[1,length(SpIdx)],gridID[2,length(SpIdx)]) # row position depending on the number of plots
+    colPos = NULL
+    for (i in 1:gridID[2,length(SpIdx)]) colPos = c(colPos,rep(i,gridID[1,length(SpIdx)])) # col position depending on the number of plots
+    
     noRow = rowPos[length(rowPos)] # last value to determine number of row/col
     noCol = colPos[length(colPos)]
     
-    png(filename=path_to_png,width = 10*noCol, height = 8*noRow, units = "cm",res = 1000)
+    png(filename=path_to_png, width = 10*noCol, height = 8*noRow, units = "cm",res = 1000)
     
     grid.newpage() 
     pushViewport(viewport(layout = grid.layout(nrow=noRow, ncol=noCol, 
                                                widths = unit(rep(10,noCol), "cm"), 
                                                heights = unit(rep(8,noRow), "cm"))))
+    
     for (i in 1:length(SpIdx))
     {print(i)
       print(plotMatStore[[SpIdx[i]]], vp = viewport(layout.pos.row = rowPos[i], layout.pos.col = colPos[i])) 
