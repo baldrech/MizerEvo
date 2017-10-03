@@ -1,5 +1,46 @@
 # useful function
 
+
+# give it an object and it will return the biomass data ready to be plotted (for species and phenotypes)
+biom <-function(object,phenotype=T)
+{
+  biomass <- getBiomass(object) # n * w * dw and sum by species
+  SpIdx = NULL # getting rid of the species that went extinct at the beginning 
+  for (i in unique(object@params@species_params$species))
+    if (sum(biomass[,i]) != 0 & dim(object@params@species_params[object@params@species_params$species == i,])[1] != 1) 
+      SpIdx = c(SpIdx,i)
+  
+  biomassTot = NULL
+  biomassTemp = biomass
+  colnames(biomassTemp) = object@params@species_params$species
+  for (i in SpIdx)
+  {
+    biomassSp = biomassTemp[,which(colnames(biomassTemp) == i)]
+    biomassSp = apply(biomassSp,1,sum)
+    biomassTot = cbind(biomassTot,biomassSp)
+  }
+  colnames(biomassTot) = SpIdx
+  # biomassTot is the biomass of species
+  # biomass is the biomass of phenotypes
+  plotB <- function(x)
+  {
+    Biom <- melt(x) # melt for ggplot
+    names(Biom) = list("time","sp","value")
+    # Due to log10, need to set a minimum value, seems like a feature in ggplot
+    min_value <- 1e-300
+    Biom <- Biom[Biom$value >= min_value,]
+    # take the first digit of the species column and put it in a new column
+    Biom$bloodline = sapply(Biom[,2], function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
+    return(Biom)
+  }
+  BiomPhen = NULL
+  if (phenotype) BiomPhen <- plotB(biomass)
+  BiomSp <- plotB(biomassTot)
+  
+  return(list(BiomSp,BiomPhen))
+}
+
+# function that takes the output of the model and make it usable for plotting and shit
 finalTouch <- function(result, dt = 0.1, print_it = T)
 {
   ## processing data
@@ -84,9 +125,6 @@ finalTouch <- function(result, dt = 0.1, print_it = T)
   
   return(sim)  
 }
-
-
-
 
 # #function that prep files for download
 # DLfig <- function(folder)
@@ -302,6 +340,7 @@ AvgAnalysis <- function(folder,where)
   
   
 }
+
 # to average multiple sims
 superStich <- function(listOfSim)
 {
@@ -328,7 +367,7 @@ superStich <- function(listOfSim)
       
       x <- as.character(EcoName[which(EcoName == i)[2]]) # take the position in the ecotype vect of the duplicated name and extract its name as character
       first = as.numeric(unlist(strsplit(x, "")))[1] # extract the first number (meaning species number that we want to keep)
-      EcoName[which(EcoName == i)[2]] = as.numeric(paste(first,sample(x = seq(1:100000),1),sep=""))  
+      EcoName[which(EcoName == i)[2]] = as.numeric(paste(first,sample(x = seq(1:100000),1),sep="")) #produce a new name but keep the first digit (species identity) 
     }
   }
   
