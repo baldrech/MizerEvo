@@ -1502,9 +1502,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       print(Wmat)
     }
   }
-  
-  if (is.null(TimeMax)) TimeMax = 4e4 #default initialisation period
-  TimeMax <- (SumPar$timeMax[i] + TimeMax) * dt
+
   
   # beforehand
   if (save_it & is.null(dir))  # if want to save but not specified where
@@ -1525,6 +1523,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   
   # because I am starting simulations with previous abundance but not updating the time max (because I forgot and I do not want to run all my sims again) I need to do it here (which will disapear once I do the update in model.r)
   
+  if (is.null(TimeMax)) TimeMax = 4e4 #default initialisation period
+  TimeMax <- (SumPar$timeMax[1] + TimeMax) * dt
   for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = TimeMax
   
   if (is.null(window)) window = c(-1,1)
@@ -2292,6 +2292,109 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   dev.off()
   if(comments) toc()
   
+}
+
+# biomass avg + trait below, species overlapping
+plotBiomAndTraits <- function(directory,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NULL, comments = T, window = NULL)
+{
+  if(is.null(file)) file = "/normal"
+  
+  # get the initial stuff
+  if(dir.exists(file.path(paste(directory,"/init",sep=""))))
+  {
+    WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
+    if (is.null(SpIdx)) SpIdx = unique(WmatSim@params@species_params$species)
+    no_sp = length(SpIdx)
+    Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+    TimeMax = WmatSim@params@species_params$timeMax[1]
+
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)}
+  } else {cat("Could not find initial values, plot is going to crash in 3 ... 2 ... 1...\n")}
+  
+  multiSim <- bunchLoad(folder = paste(directory,file,sep="")) # load the folder (either normal, init or fisheries)
+  
+  if(comments) cat("sim loaded\n")
+  
+  colfunc <- colorRampPalette(c("black", "white"))
+  # BIOMASS
+  sim <- superStich(multiSim) # stich the abundance together
+  
+  plot_datBiom <- biom(sim,phenotype = F) # get the abundance data for all the sitched sim
+  p1 <- ggplot(plot_datBiom[[1]]) +
+    geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1.2) +
+    scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(1e-05, NA), breaks = c(1 %o% 10^(-5:-1))) +
+    scale_x_continuous(name = "Time in years") +
+    labs(color='Species') +
+    theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
+          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+    scale_color_manual(name = "Species", values =sort(colfunc(no_sp +1), decreasing = T)[-1])+ # grey color gradient (white deleted (1+ nosp - first)), biggest is darkest
+    ggtitle(NULL)
+  
+  if(comments) cat("Biomass done\n")
+  #TRAITS
+  
+   # get the plots
+  TraitsList <- list()
+  for (i in 1:length(multiSim))
+  {
+    if (comments) cat(sprintf("Using run %g\n",i))
+    TraitsList[[i]] <- plotTraitsMulti(object = multiSim[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
+  }
+  if (comments) cat("Plots loaded")
+  speciesList <- list()
+  for (j in SpIdx) # for every species
+  {
+    speciesData <- NULL
+    for (i in 1:length(TraitsList)) # at each time
+    {
+      if (!is.null(TraitsList[[i]][[1]][[j]]))
+      {
+        a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
+        if (!is.null(a$data[[1]]$group))
+        {
+          a$data[[1]]$species <- j # add species identity in the data
+          a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+          
+          speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+        }
+      }
+    }
+    speciesList[[j]] <- speciesData #this is a list of all the species at each time
+  }
+  
+  if (is.null(window)) window = c(-1,1)
+  if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
+  plot_datTrait <- do.call("rbind",speciesList)
+  
+  p2 <- ggplot(plot_datTrait)+
+    geom_line(aes(x=x,y=y, group = group, color = as.factor(species))) +#colour=as.factor(group))) + 
+    scale_x_continuous(name = "Time in years")+
+    scale_y_continuous(name = "Trait relative proportion to initial value", limits = window)+
+    scale_color_manual(name = "Size", values =sort(colfunc(no_sp +1), decreasing = T)[-1])+ # grey color gradient (white deleted (1+ nosp - first)), biggest is darkest
+    theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
+          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+    ggtitle(NULL)
+  
+  
+  # MULTIPLOT
+  
+  path_to_png = paste(directory,file,"/Biom&Traits.png",sep="")
+  
+  png(filename=path_to_png, width = 10, height = 20, units = "cm",res = 1000)
+  
+  grid.newpage() 
+  pushViewport(viewport(layout = grid.layout(nrow=2, ncol=1, 
+                                             widths = unit(10, "cm"), 
+                                             heights = unit(10, "cm"))))
+  
+  print(p1, vp = viewport(layout.pos.row = 1, layout.pos.col = 1)) 
+  print(p2, vp = viewport(layout.pos.row = 2, layout.pos.col = 1)) 
+  
+  dev.off()
 }
 
 # bar plot of alive and extinct to compare
