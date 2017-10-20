@@ -41,86 +41,58 @@ biom <-function(object,phenotype=T)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
-finalTouch <- function(result, dt = 0.1, print_it = T)
+finalTouch <- function(result, dt = 0.1, comments = T)
 {
   ## processing data
-  if (print_it) cat(sprintf("Data handling\n"))
-  # a result will be a list of simulations (number of runs) and the ID card of the ecosystem, 
+  if (comments) cat("Data handling\n")
+  # a result will be a list of simulations (number of runs) and the ID card of the ecosystem,
   
   gc()
   sim = result[[1]] # get the dat
   SummaryParams = result[[2]] # get the params
   rm(result) # get space back
-  sim <- sim[lapply(sim,length)>0] # if a sim is empty
-  endlist = length(sim) # updating the number
-  template = sim[[endlist]] # to keep a template of mizer object somewhere
+  sim <- sim[lapply(sim, length) > 0] # if a sim is empty
+  template = sim[[length(sim)]] # to keep a template of mizer object somewhere
   gc()
   
   # stitiching the sims together
-  Dtime = dim(sim[[1]]@n)[1] # need these dimensions for making new arrays but separatly as I'm going to work on sp dim
+  Dtime = SummaryParams@species_params$timeMax[1] * dt
   Dsp = length(SummaryParams@species_params$ecotype)
   Dw = dim(sim[[1]]@n)[3]
   # put all the sim at the same dimension
-  for (i in 1:endlist) 
+  biomList <- list()
+  for (i in 1:length(sim))
+    # for each sim
   {
-    # print(i)
-    for (j in 1:Dsp)
-    {
-      gc()
-      if (is.na(dimnames(sim[[i]]@n)$sp[j])) # if I need to add species at the end of the array
-      {
-        sim[[i]]@n <- abind(sim[[i]]@n,array(dim = c(Dtime,Dw)),along = 2)
-        names(dimnames(sim[[i]]@n)) <- list("time","sp","w") # the abind make me loose the info
-      }
-      else if (dimnames(sim[[i]]@n)$sp[j] != SummaryParams@species_params$ecotype[j]) # if I need to add in the middle of the array
-      {
-        rmbr = NULL # when I abind only one column of the array (happens when there is an extinction right before the last ecotype), I lose its name, leading to bugs
-        
-        if (j == dim(sim[[i]]@n)[2]) rmbr = dimnames(sim[[i]]@n)$sp[j] # with this I know when it happens
-        
-        sim[[i]]@n <- abind(sim[[i]]@n[,1:j-1,],array(dim = c(Dtime,Dw)),sim[[i]]@n[,j:dim(sim[[i]]@n)[2],], along = 2) # if sp 1 goes extinct I will have a bug, or not it seems
-        names(dimnames(sim[[i]]@n)) <- list("time","sp","w") # the abind makes me loose the info
-        
-        if (is.null(rmbr)==F) dimnames(sim[[i]]@n)$sp[j+1] = rmbr # and I add back the name
-        
-      }
-    }
-    dimnames(sim[[i]]@n)$sp = SummaryParams@species_params$ecotype # put back the right names
-    sim[[i]]@n = sim[[i]]@n[-1,,] # in my tentative to include fisheries, I am deleting the first time step (which is 0 now) to have the same length as the effort matrix. I'm running out of time, Ill fix that later I hope
+    biom <- array(data = 0, dim = c(dim(sim[[i]]@n)[1], Dsp, Dw), dimnames = list(dimnames(sim[[i]]@n)$time, SummaryParams@species_params$ecotype, SummaryParams@w)) # create an array of the right dimension
+    names(dimnames(biom)) = c("time", "species", "size")
+    for (j in dimnames(sim[[i]]@n)$sp) # fill it when necessary
+      biom[, which(dimnames(biom)$species == j), ] = sim[[i]]@n[, which(dimnames(sim[[i]]@n)$sp == j), ]
+    
+    biomList[[i]] <- biom[-1,,] # store it
   }
-  # getting rid of the NAs
-  gc()
-  for (j in 1:endlist) sim[[j]]@n[is.na( sim[[j]]@n)] <- 0
-  gc()
-  # now add them in a row
-  biom <- do.call(abind, c(lapply(sim, function(isim) isim@n),along = 1))
-  gc()
-  
-  names(dimnames(biom)) = list("time","species","size")
-  dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]) * dt # meh
-  gc()
+  biom <- do.call("abind", list(biomList, along = 1)) # abind the list
+  names(dimnames(biom)) = list("time", "species", "size")
+  dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1])
   
   # I have to do the phyto aussi
-  phyto = sim[[1]]@n_pp[-1, ] #get rid of time 0
-  for (i in 2:endlist) phyto = abind(phyto, sim[[i]]@n_pp[-1, ], along = 1)
-  
-  if (print_it) cat(sprintf("Biomass handeled successfully, now starting the effort.\n"))
+  phyto <- do.call(abind, c(lapply(sim, function(isim)
+    isim@n_pp), along = 1))
   
   # taking care of the effort
-  # for now it is constant in time so we just need to multiply effort by no_run
-  effort = sim[[1]]@effort
-  for(i in 2:endlist) effort = rbind(effort,sim[[i]]@effort)
-  names(dimnames(effort)) = list("time","effort")
-  dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1]) * dt # i don't know whats wrong with the else
+  effort <- do.call(rbind, lapply(sim, function(isim)
+    isim@effort))
+  names(dimnames(effort)) = list("time", "effort")
+  dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1])
   
-  # I need to assemble the mizer object now
+  # reconstruct the mizer object
   sim = template
-  sim@params=SummaryParams
+  sim@params = SummaryParams
   sim@n = biom
   sim@effort = effort
   sim@n_pp = phyto
   
-  rm(list = "template","biom","phyto","effort")
+  rm(list = "biom", "phyto", "effort")
   gc()
   
   return(sim)  
@@ -350,7 +322,7 @@ superStich <- function(listOfSim)
   min_w = 0.001 
   max_w = 1e5 * 1.1
   min_w_pp = 1e-10
-  w_pp_cutoff = 0.5
+  w_pp_cutoff = 1e3
   n = 0.75 
   p = 0.75 
   q = 0.8
@@ -358,7 +330,7 @@ superStich <- function(listOfSim)
   kappa = 0.05
   lambda = 2+q-n
   
-  EcoName = do.call(c,lapply(listOfSim, function(isim) isim@params@species_params$ecotype))
+  EcoName = do.call("c",lapply(listOfSim, function(isim) isim@params@species_params$ecotype))
   
   while (sum(duplicated(EcoName))>0) # while there are some duplicated name in the vector
   {
