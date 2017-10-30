@@ -530,7 +530,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 
 # plot feeding / satiation level
-plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = T, start = 1000, every = 1000, print_it = T, ...){
+plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = F, start = 1000, every = 1000, print_it = T, returnData = F, ...){
   
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
@@ -630,7 +630,7 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
   
   if(print_it) print(p)
   
-  return(p)
+  if (returnData) return(plot_dat) else return(p)
 }
 
 # plot of the number of ecotype per time step
@@ -805,10 +805,10 @@ PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
   if (returnData) return(list(stat,dfRibbon)) else return(p)
 }
 
-# my plot of the dead
+# my plot of the dead (x 3 because that's why)
 #' Plot M2 of each species by size 
 
-plotUdead <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)),species = T, throughTime = T, print_it = TRUE, ...){
+plotUdead <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)),species = T, throughTime = F, print_it = TRUE, returnData = F, ...){
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
@@ -879,12 +879,11 @@ plotUdead <- function(object, time_range = max(as.numeric(dimnames(object@n)$tim
     scale_y_continuous(name = "M2", lim=c(0,max(plot_dat$value))) +
     ggtitle(name)
   
-  if (print_it)
-    print(p)
-  return(p)
+  if (print_it) print(p)
+  if(returnData) return(plot_dat) else return(p)
 }
 
-plotTotMort <- function(directory, predMort = NULL, time_range = NULL )
+plotTotMort <- function(directory, predMort = NULL, time_range = NULL, print_it =F, returnData = F)
 {
   # let's assume that object is a list of different sims
   object <- bunchLoad(folder = paste(directory,"/normal",sep=""))
@@ -942,13 +941,50 @@ plotTotMort <- function(directory, predMort = NULL, time_range = NULL )
     scale_colour_grey(name = "Eta")+ 
     ggtitle("Predation mortality")
   
-  print(p)
+  if (print_it) print(p)
   
+  if(returnData) return(dat) else return(p)
+  
+}
+
+plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time)),print_it = TRUE, returnData = F, comments = T)
+{
+
+  z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = object@effort[whatTime])
+  dimnames(z)$prey = object@params@species_params$species
+  SpIdx = unique(object@params@species_params$species) # get the species names
+  
+  z_sp = matrix(data = NA, ncol = dim(z)[2], nrow = length(SpIdx), dimnames = list(as.character(SpIdx),dimnames(z)$w_prey)) # prepare the new object
+  names(dimnames(z_sp))=list("prey","w_prey")
+    
+    for (i in 1:dim(z_sp)[1])
+    {
+      temp = z # save to manip
+      temp[which(rownames(z) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(z)==i)) # do the mean (in 2 steps)
+      z_sp[i, ] = temp
+    }
+    z = z_sp
+  
+  name = paste("Predation Mortality at time",whatTime,sep=" ")
+  
+  plot_dat <- data.frame(value = c(z), Species = dimnames(z)[[1]], w = rep(object@params@w, each=length(dimnames(z)[[1]])))
+  
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=w, y = value, colour = Species)) + 
+    scale_x_continuous(name = "Size", trans="log10") + 
+    scale_y_continuous(name = "M2", lim=c(0,max(plot_dat$value))) +
+    ggtitle(name)
+  
+  if (print_it) print(p)
+  if(returnData) return(plot_dat) else return(p)
+
 }
 
 # plot growth at time t
 
-plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T,...){
+plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F,...){
   
   time_elements <- get_time_elements(object,time_range)
   growth_time <- aaply(which(time_elements), 1, function(x){
@@ -990,7 +1026,7 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
   
   if(print_it) print(p)
   
-  return(p)
+  if (returnData) return(plot_dat) else return(p)
 }
 
 # growth curve
@@ -3446,32 +3482,7 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
     dimnames(abundance)$species = SumPar$species #phenotypes get their species name
     time_range = seq((whatTime-50),whatTime,1)
     
-    #windows scale do not work for now because maturation size is species specific
-    # #wmat
-    # a = sort(SumPar$w_mat) #get sigma values
-    # b = c(head(a,1),tail(a,1)) # get both end of the spectrum
-    # c = abs((b-SumPar$w_mat[1])/b) # normalise
-    # d = sort(c,decreasing = T)[1] # get the biggest one
-    # windowM = c( - round(d, digits = 2), round(d, digits = 2)) # this is the maximum limit 
-    # print(windowM)
-    # #ppmr
-    # a = sort(SumPar$beta) #get sigma values
-    # b = c(head(a,1),tail(a,1)) # get both end of the spectrum
-    # c = abs((b-SumPar$beta[1])/b) # normalise
-    # d = sort(c,decreasing = T)[1] # get the biggest one
-    # windowP = c( - round(d, digits = 2), round(d, digits = 2)) # this is the maximum limit 
-    # print(windowP)
-    # #sigma
-    # a = sort(SumPar$sigma) #get sigma values
-    # b = c(head(a,1),tail(a,1)) # get both end of the spectrum
-    # c = abs((b-SumPar$sigma[1])/b) # normalise
-    # d = sort(c,decreasing = T)[1] # get the biggest one
-    # windowS = c( - round(d, digits = 2), round(d, digits = 2)) # this is the maximum limit 
-    # print(windowS)
-    # # I have 3 windows, need to take the biggest
-    # up = sort(c(windowM[2],windowP[2],windowS[2]))[3]
-    # down = sort(c(windowM[1],windowP[1],windowS[1]))[3]
-    # window = c(down,up)
+
     window = window
     
     if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))

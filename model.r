@@ -122,8 +122,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
   else 
   {
     Nparam = initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct to start the sim
-    #Nparam$pop = 0
-    #Nparam$timeMax = Nparam$timeMax + no_run * t_max / dt # update the time max of the sim, ///additon of time or
+    for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
+    
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     #print(Nparam)
     param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)

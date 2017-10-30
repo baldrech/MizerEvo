@@ -110,6 +110,8 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
     tmpB <- (log10(w_inf[length(w_inf)]) - log10(w_inf[1])) / (no_sp - 1) # Difference between logged w_infs, fine
     
     if (length(no_sp) == 1 ) dw_winf <-  tmpA *10
+    #if (no_sp == 1 ) dw_winf <-  tmpA *10
+    
     else  dw_winf <- tmpB * tmpA *10^(tmpB*((1:no_sp)-1)) # ?
     
     N0_max <- k0 * w_inf^(n*2-q-3+alpha_rec) * dw_winf  # Why * dw_winf, not / ? Ken confirms * in email

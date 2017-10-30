@@ -73,7 +73,7 @@ finalTouch <- function(result, dt = 0.1, comments = T)
   }
   biom <- do.call("abind", list(biomList, along = 1)) # abind the list
   names(dimnames(biom)) = list("time", "species", "size")
-  dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1])
+  dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
   
   # I have to do the phyto aussi
   phyto <- do.call(abind, c(lapply(sim, function(isim)
@@ -83,7 +83,7 @@ finalTouch <- function(result, dt = 0.1, comments = T)
   effort <- do.call(rbind, lapply(sim, function(isim)
     isim@effort))
   names(dimnames(effort)) = list("time", "effort")
-  dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1])
+  dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1])*dt
   
   # reconstruct the mizer object
   sim = template
