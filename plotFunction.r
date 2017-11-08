@@ -279,10 +279,9 @@ plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FAL
   return(p)
 }
 
-plotDynamicsMulti <- function(folder)
-{
+plotDynamicsMulti <- function(folder){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
-
+  
   #NO FISHERIES PART
   path_to_sim = paste(folder,"/normal",sep="")
   bigSim <- bunchLoad(folder = path_to_sim)
@@ -377,6 +376,140 @@ plotDynamicsMulti <- function(folder)
   
   dev.off() 
 }
+
+plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, what = c("normal","fisheries"), dt = 0.1, returnData = F)
+{
+  tic()
+  #plotList <- list() # to store the plots
+  plot_datList <- list() #to store the data
+  multiSimInit <- bunchLoad(folder = paste(folder,"/init",sep=""))
+  
+  if(comments) cat("Init sims loaded\n")
+  
+  for (column in what) # are we plotting normal or fisheries sims ?
+  {
+    if (column == "normal") 
+    {
+      listPosition = 1
+      multiSim <- bunchLoad(folder = paste(folder,"/normal",sep=""))
+      title = c("(a) Without fisheries","(b)","(c)")
+      cat("Normal runs\n")
+    } else if (column == "fisheries") 
+    {
+      listPosition = 2
+      multiSim <- bunchLoad(folder = paste(folder,"/fisheries",sep=""))
+      title = c("(d) With fisheries","(e)","(f)")
+      cat("Fishery runs\n")
+    } else stop("I don't know what to plot")
+    
+    
+    template = multiSimInit[[1]]
+    longSimList <- list()
+    timeMax = multiSimInit[[1]]@params@species_params$timeMax[1] + multiSim[[1]]@params@species_params$timeMax[1]
+    #prepare the data 
+    for (x in 1:length(multiSimInit))
+    {
+      if(comments)  cat(sprintf("Using run %i\n",x))
+      
+      # get the right species params
+      SummaryParams = template@params # structure and basics params
+      SummaryParams@species_params = rbind(multiSimInit[[x]]@params@species_params,multiSim[[x]]@params@species_params) # get the sp ID from both sim
+      SummaryParams@species_params$timeMax = timeMax # update the timemax
+      a <- SummaryParams@species_params
+      a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
+      a <- a[!duplicated(a$ecotype),]
+      SummaryParams@species_params = a[order(a$pop,a$ecotype),]
+      
+      #if (is.null(SpIdx)) SpIdx = sort(unique(SummaryParams@species_params$species))
+      
+      if (comments) cat("Data handling\n")
+      
+      result = list(list(multiSimInit[[x]],multiSim[[x]]),SummaryParams) # cannot use finalTOuch exactly as the data as been divided by 10 (dimnames issues)
+      
+      gc()
+      sim = result[[1]] # get the dat
+      SummaryParams = result[[2]] # get the params
+      rm(result) # get space back
+      sim <- sim[lapply(sim, length) > 0] # if a sim is empty
+      template = sim[[length(sim)]] # to keep a template of mizer object somewhere
+      gc()
+      
+      # stitiching the sims together
+      Dtime = SummaryParams@species_params$timeMax[1] * dt
+      Dsp = length(SummaryParams@species_params$ecotype)
+      Dw = dim(sim[[1]]@n)[3]
+      # put all the sim at the same dimension
+      biomList <- list()
+      for (i in 1:length(sim)) # for each sim
+      {
+        biom <- array(data = 0, dim = c(dim(sim[[i]]@n)[1], Dsp, Dw), dimnames = list(dimnames(sim[[i]]@n)$time, SummaryParams@species_params$ecotype, SummaryParams@w)) # create an array of the right dimension
+        names(dimnames(biom)) = c("time", "species", "size")
+        for (j in dimnames(sim[[i]]@n)$sp) # fill it when necessary
+          biom[, which(dimnames(biom)$species == j), ] = sim[[i]]@n[, which(dimnames(sim[[i]]@n)$sp == j), ]
+        
+        biomList[[i]] <- biom[-1,,] # store it
+      }
+      biom <- do.call("abind", list(biomList, along = 1)) # abind the list
+      names(dimnames(biom)) = list("time", "species", "size")
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
+      
+      # I have to do the phyto aussi
+      phyto <- do.call(abind, c(lapply(sim, function(isim)
+        isim@n_pp), along = 1))
+      
+      # taking care of the effort
+      effort <- do.call(rbind, lapply(sim, function(isim)
+        isim@effort))
+      names(dimnames(effort)) = list("time", "effort")
+      dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)
+      
+      # reconstruct the mizer object
+      sim = template
+      sim@params = SummaryParams
+      sim@n = biom
+      sim@effort = effort
+      sim@n_pp = phyto
+      
+      rm(list = "biom", "phyto", "effort")
+      gc()
+      
+      longSimList[[x]] <- sim
+      
+    }
+    
+    if (comments) cat("Data ready\n")  
+    # get the initial stuff
+    SpIdx = sort(unique(longSimList[[1]]@params@species_params$species)) # determine spidx if not already given by user
+    no_sp = length(SpIdx) # get the species number from this
+
+  if (comments) cat("Initialisation done\n")
+    
+    for(i in 1:20) gc()
+  
+  sim <- superStich(longSimList)
+  if (comments) cat("Simulations concatened\n")
+  plot_dat <- biom(sim,phenotype = F)
+  if (comments) cat("Phenotypes reunification\n")
+  plot_datList[[listPosition]] <- plot_dat
+  }
+
+  if (comments) print(toc())
+  
+  if(returnData) return(plot_datList)
+  
+ p <-  ggplot(plot_datList[[1]]) +
+    geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp)) +
+    scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = window) +
+    scale_x_continuous(name = "Time in years") +
+    theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
+        ggtitle(NULL)
+  
+ return(p)
+
+}
+
 
 # plot size spectrum
 plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), min_w =min(object@params@w)/100, biomass = TRUE, print_it = TRUE, species = TRUE, ...){
@@ -555,16 +688,16 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
       
       dimnames(feed)$sp = object@params@species_params$species
       SpIdx = unique(object@params@species_params$species) # get the species names
-      feed_sp = matrix(data = NA, ncol = dim(feed)[2], nrow = length(SpIdx), dimnames = list(as.character(SpIdx),dimnames(feed)$w)) # prepare the new object
+      feed_sp = matrix(data = NA, ncol = dim(feed)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(feed)$w)) # prepare the new object
       names(dimnames(feed_sp))=list("species","size")
       
-      for (j in 1:dim(feed_sp)[1])
+      for (j in SpIdx)
       {
         temp = feed # save to manip
         temp[which(rownames(feed) != j), ] = 0 # keep the ecotypes from the species only
         temp = apply(temp, 2, sum)
         temp = temp / length(which(rownames(feed)==j)) # do the mean (in 2 steps)
-        feed_sp[j, ] = temp
+        feed_sp[which(rownames(feed_sp)==j), ] = temp
       }
       feeding[,,which(dimnames(feeding)[[3]] == i)] = feed_sp
       Critfeeding[which(dimnames(Critfeeding)[[1]] == i),] = Critfeed
@@ -595,24 +728,23 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
     
   }
   
-  
   feed_time <- getFeedingLevel(object=object, time_range=time_range, drop=FALSE, ...) # get the feeding time
   feed <- apply(feed_time, c(2,3), mean) # average on the time frame
   
   if (species) # if I want to display species instead of ecotypes
   {
     dimnames(feed)$sp = object@params@species_params$species
-    SpIdx = unique(object@params@species_params$species) # get the species names
-    feed_sp = matrix(data = NA, ncol = dim(feed)[2], nrow = length(SpIdx), dimnames = list(as.character(SpIdx),dimnames(feed)$w)) # prepare the new object
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    feed_sp = matrix(data = NA, ncol = dim(feed)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(feed)$w)) # prepare the new object
     names(dimnames(feed_sp))=list("species","size")
     
-    for (i in 1:dim(feed_sp)[1])
+    for (i in SpIdx)
     {
       temp = feed # save to manip
       temp[which(rownames(feed) != i), ] = 0 # keep the ecotypes from the species only
       temp = apply(temp, 2, sum)
       temp = temp / length(which(rownames(feed)==i)) # do the mean (in 2 steps)
-      feed_sp[i, ] = temp
+      feed_sp[which(rownames(feed_sp)==i), ] = temp
     }
     feed = feed_sp
   }
@@ -947,25 +1079,24 @@ plotTotMort <- function(directory, predMort = NULL, time_range = NULL, print_it 
   
 }
 
-plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time)),print_it = TRUE, returnData = F, comments = T)
-{
-
+plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time)),print_it = TRUE, returnData = F, comments = T){
+  
   z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = object@effort[whatTime])
   dimnames(z)$prey = object@params@species_params$species
-  SpIdx = unique(object@params@species_params$species) # get the species names
+  SpIdx = sort(unique(object@params@species_params$species)) # get the species names
   
-  z_sp = matrix(data = NA, ncol = dim(z)[2], nrow = length(SpIdx), dimnames = list(as.character(SpIdx),dimnames(z)$w_prey)) # prepare the new object
+  z_sp = matrix(data = NA, ncol = dim(z)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(z)$w_prey)) # prepare the new object
   names(dimnames(z_sp))=list("prey","w_prey")
-    
-    for (i in 1:dim(z_sp)[1])
-    {
-      temp = z # save to manip
-      temp[which(rownames(z) != i), ] = 0 # keep the ecotypes from the species only
-      temp = apply(temp, 2, sum)
-      temp = temp / length(which(rownames(z)==i)) # do the mean (in 2 steps)
-      z_sp[i, ] = temp
-    }
-    z = z_sp
+  
+  for (i in SpIdx)
+  {
+    temp = z # save to manip
+    temp[which(rownames(z) != i), ] = 0 # keep the ecotypes from the species only
+    temp = apply(temp, 2, sum)
+    temp = temp / length(which(rownames(z)==i)) # do the mean (in 2 steps)
+    z_sp[which(rownames(z_sp)==i), ] = temp
+  }
+  z = z_sp
   
   name = paste("Predation Mortality at time",whatTime,sep=" ")
   
@@ -979,8 +1110,9 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
   
   if (print_it) print(p)
   if(returnData) return(plot_dat) else return(p)
-
+  
 }
+
 
 # plot growth at time t
 
@@ -1001,17 +1133,17 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
   if (species) # if I want to display species instead of ecotypes
   {
     dimnames(growth)$sp = object@params@species_params$species
-    SpIdx = unique(object@params@species_params$species) # get the species names
-    growth_sp = matrix(data = NA, ncol = dim(growth)[2], nrow = length(SpIdx), dimnames = list(as.character(SpIdx),dimnames(growth)$w)) # prepare the new object
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    growth_sp = matrix(data = NA, ncol = dim(growth)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(growth)$w)) # prepare the new object
     names(dimnames(growth_sp))=list("species","size")
     
-    for (i in 1:dim(growth_sp)[1])
+    for (i in SpIdx)
     {
       temp = growth # save to manip
       temp[which(rownames(growth) != i), ] = 0 # keep the ecotypes from the species only
       temp = apply(temp, 2, sum)
       temp = temp / length(which(rownames(growth)==i)) # do the mean (in 2 steps)
-      growth_sp[i, ] = temp
+      growth_sp[which(rownames(growth_sp)==i), ] = temp
     }
     growth = growth_sp
   }
@@ -1577,6 +1709,10 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   plotPPMRStore <- list()
   plotDBStore <- list()
   
+  datMatStore <- list()
+  datPPMRStore <- list()
+  datDBStore <- list()
+  
   # MATURATION SIZE
   if (Mat)
   {
@@ -1709,7 +1845,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       }
       
       plotMatStore[[i]] = p
-      
+      datMatStore[[i]] <- stat
       
     }
   }
@@ -1839,7 +1975,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       }
       
       plotPPMRStore[[i]] <- p
-      
+      datPPMRStore[[i]] <- stat
       
       
     }
@@ -1974,13 +2110,15 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       }
       
       plotDBStore[[i]] <- p
+      datDBStore[[i]] <- stat
       
     }
   }
   
   if (comments) cat("plotTraitsMulti ends\n") 
   
-  if (returnData) return(list(plotMatStore,plotPPMRStore,plotDBStore))
+  # if (returnData) return(list(plotMatStore,plotPPMRStore,plotDBStore))
+  if (returnData) return(list(datMatStore,datPPMRStore,datDBStore))
   
   
   # construction of the multiplot
@@ -2668,13 +2806,14 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
 }
 
 #this one when fished (so I have to load init and fisheries and maybe normal)
-plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, comments = T, window = NULL, what = c("normal","fisheries"), option = "A")
+plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, comments = T, window = NULL, what = c("normal","fisheries"), dt = 0.1, returnData = F)
 {
   tic()
-  dt = 0.1
+ 
   path_to_png = paste(folder,"/Biom&TraitsCompareFished.png",sep="")
   
   plotList <- list() # to store the plots
+  plot_datList <- list() #to store the data
    multiSimInit <- bunchLoad(folder = paste(folder,"/init",sep=""))
   
   if(comments) cat("Init sims loaded\n")
@@ -2686,34 +2825,46 @@ plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, com
       listPosition = 1
       multiSim <- bunchLoad(folder = paste(folder,"/normal",sep=""))
       title = c("(a) Without fisheries","(b)","(c)")
+      cat("Normal runs")
     } else if (column == "fisheries") 
     {
       listPosition = 2
       multiSim <- bunchLoad(folder = paste(folder,"/fisheries",sep=""))
       title = c("(d) With fisheries","(e)","(f)")
+      cat("Fishery runs")
     } else stop("I don't know what to plot")
     
-    if (option == "A")
-    {
-    #multiSimNormal <- bunchLoad(folder = paste(folder,"/normal",sep=""))
+   
     template = multiSimInit[[1]]
     longSimList <- list()
+    timeMax = multiSimInit[[1]]@params@species_params$timeMax[1] + multiSim[[1]]@params@species_params$timeMax[1]
     #prepare the data 
     for (x in 1:length(multiSimInit))
     {
       if(comments)  cat(sprintf("Using run %i\n",x))
+      
       # get the right species params
       SummaryParams = template@params # structure and basics params
       SummaryParams@species_params = rbind(multiSimInit[[x]]@params@species_params,multiSim[[x]]@params@species_params) # get the sp ID from both sim
-      SummaryParams@species_params$timeMax = sum(unique(SummaryParams@species_params$timeMax)) # update the timemax 
+      SummaryParams@species_params$timeMax = timeMax # update the timemax
       a <- SummaryParams@species_params
       a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
       a <- a[!duplicated(a$ecotype),]
       SummaryParams@species_params = a[order(a$pop,a$ecotype),]
       
+      #if (is.null(SpIdx)) SpIdx = sort(unique(SummaryParams@species_params$species))
+
       if (comments) cat("Data handling\n")
       
-      sim = list(multiSimInit[[x]],multiSim[[x]]) # get the data
+      result = list(list(multiSimInit[[x]],multiSim[[x]]),SummaryParams) # cannot use finalTOuch exactly as the data as been divided by 10 (dimnames issues)
+      
+      gc()
+      sim = result[[1]] # get the dat
+      SummaryParams = result[[2]] # get the params
+      rm(result) # get space back
+      sim <- sim[lapply(sim, length) > 0] # if a sim is empty
+      template = sim[[length(sim)]] # to keep a template of mizer object somewhere
+      gc()
       
       # stitiching the sims together
       Dtime = SummaryParams@species_params$timeMax[1] * dt
@@ -2723,96 +2874,64 @@ plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, com
       biomList <- list()
       for (i in 1:length(sim)) # for each sim
       {
-        biom <- array(data = 0, dim = c(dim(sim[[i]]@n)[1],Dsp,Dw), dimnames = list(dimnames(sim[[i]]@n)$time, SummaryParams@species_params$ecotype, SummaryParams@w)) # create an array of the right dimension
-        names(dimnames(biom)) = c("time","species","size")
-        for (j in dimnames(sim[[i]]@n)$species) # fill it when necessary
-          biom[,which(dimnames(biom)$species == j),] = sim[[i]]@n[,which(dimnames(sim[[i]]@n)$species == j),]
+        biom <- array(data = 0, dim = c(dim(sim[[i]]@n)[1], Dsp, Dw), dimnames = list(dimnames(sim[[i]]@n)$time, SummaryParams@species_params$ecotype, SummaryParams@w)) # create an array of the right dimension
+        names(dimnames(biom)) = c("time", "species", "size")
+        for (j in dimnames(sim[[i]]@n)$sp) # fill it when necessary
+          biom[, which(dimnames(biom)$species == j), ] = sim[[i]]@n[, which(dimnames(sim[[i]]@n)$sp == j), ]
         
-        biomList[[i]] <- biom # store it
+        biomList[[i]] <- biom[-1,,] # store it
       }
-      biom <- do.call("abind",list(biomList, along = 1)) # abind the list
-      names(dimnames(biom)) = list("time","species","size")
-      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]* dt)  
+      biom <- do.call("abind", list(biomList, along = 1)) # abind the list
+      names(dimnames(biom)) = list("time", "species", "size")
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
       
       # I have to do the phyto aussi
-      phyto <- do.call(abind, c(lapply(sim, function(isim) isim@n_pp),along = 1))
+      phyto <- do.call(abind, c(lapply(sim, function(isim)
+        isim@n_pp), along = 1))
       
       # taking care of the effort
-      effort <- do.call(rbind, lapply(sim, function(isim) isim@effort))
-      names(dimnames(effort)) = list("time","effort")
-      dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1]* dt) 
+      effort <- do.call(rbind, lapply(sim, function(isim)
+        isim@effort))
+      names(dimnames(effort)) = list("time", "effort")
+      dimnames(effort)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)
       
       # reconstruct the mizer object
       sim = template
-      sim@params=SummaryParams
+      sim@params = SummaryParams
       sim@n = biom
       sim@effort = effort
       sim@n_pp = phyto
       
-      longSimList[[x]] <- sim
-      rm(list = "biom","phyto","effort","sim")
+      rm(list = "biom", "phyto", "effort")
       gc()
       
-    }
+      longSimList[[x]] <- sim
+
     }
     
-    if (comments) cat("Data ready")  
+    if (comments) cat("Data ready\n")  
     # get the initial stuff
     SpIdx = sort(unique(longSimList[[1]]@params@species_params$species)) # determine spidx if not already given by user
     no_sp = length(SpIdx) # get the species number from this
-    Wmat = longSimList[[1]]@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values
-    TimeMax = longSimList[[1]]@params@species_params$timeMax[1] # and the length of the initialisation
+    Wmat = longSimList[[1]]@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values, I have the init sim in there so it should not be too dangerous
     if (comments) cat("Initialisation done\n")
-    
     
     # color gradient
     colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
     colGrad <- colfunc(no_sp)
     names(colGrad) <- seq(1,no_sp)
-    # colGrad[[column]] <- colfunc(no_sp)
-    # names(colGrad[[column]]) <- seq(1,no_sp)
-    
-    
-    #BIOMASS
-    # sim <- superStich(longSimList) # stich the abundance together
-    # 
-    # plot_datBiom <- biom(longSimList[[1]],phenotype = T) # get the species and phenotypes abundance for one sim
-    # p1 <- ggplot(plot_datBiom[[1]]) +
-    #   geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
-    #   geom_line(data = plot_datBiom[[2]], aes(x = time, y = value, colour = as.factor(bloodline), group = sp), alpha = 0.2) +
-    #   scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(1e-15, NA)) +
-    #   geom_vline(xintercept = 4000, linetype = "dashed") +
-    #   scale_x_continuous(name = NULL, labels = NULL) +
-    #   scale_color_manual(name = "Species", values = colGrad)+ # color gradient
-    #   theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
-    #         panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
-    #         legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-    #   ggtitle(title[1])
-    # 
-    # plot_datBiom <- biom(sim,phenotype = F) # get the abundance data for all the sitched sim
-    # p2 <- ggplot(plot_datBiom[[1]]) +
-    #   geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
-    #   scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(NA, NA)) +
-    #   geom_vline(xintercept = 4000, linetype = "dashed") +
-    #   scale_x_continuous(name = NULL) +
-    #   scale_color_manual(name = "Species", values =colGrad)+ # color gradient
-    #   theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
-    #         panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
-    #         legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-    #   ggtitle(title[2])
-    # 
-    # if(comments) cat("Biomass done\n")
-    
+
     #TRAITS
     # get the plots
     TraitsList <- list()
     for (i in 1:length(longSimList))
     {
       if (comments) cat(sprintf("Using run %g\n",i))
-      TraitsList[[i]] <- plotTraitsMulti(object = longSimList[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax, window = window)
+      TraitsList[[i]] <- plotTraitsMulti(object = longSimList[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = timeMax, window = window)
     }
     if (comments) cat("Plots loaded")
     speciesList <- list()
+    
     for (j in SpIdx) # for every species
     {
       speciesData <- NULL
@@ -2820,62 +2939,45 @@ plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, com
       {
         if (!is.null(TraitsList[[i]][[1]][[j]]))
         {
-          a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
-          if (!is.null(a$data[[1]]$group))
-          {
-            a$data[[1]]$species <- j # add species identity in the data
-            a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+          a <- TraitsList[[i]][[1]][[j]] # take the plot data
+          
+            a$species <- j # add species identity in the data
+            a$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
             
-            speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
-          }
+            speciesData <- rbind(speciesData,a) #bind the same species at different time
+          
         }
       }
       speciesList[[j]] <- speciesData #this is a list of all the species at each time
     }
     
-    #let's add the initial trait run
-    #multiSimInit <- bunchLoad(folder = paste(directory,"/init",sep="")) # load the init sims
-    
-    # TraitsListInit <- list()
-    # for (i in 1:length(multiSimInit))
-    # {
-    #   if (comments) cat(sprintf("Using run %g\n",i))
-    #   TraitsListInit[[i]] <- plotTraitsMulti(object = multiSimInit[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = 0, window = window)
-    # }
-    # if (comments) cat("Init plots loaded")
-    # speciesListInit <- list()
     # for (j in SpIdx) # for every species
     # {
-    #   speciesDataInit <- NULL
-    #   for (i in 1:length(TraitsListInit)) # at each time
+    #   speciesData <- NULL
+    #   for (i in 1:length(TraitsList)) # at each time
     #   {
-    #     if (!is.null(TraitsListInit[[i]][[1]][[j]]))
+    #     if (!is.null(TraitsList[[i]][[1]][[j]]))
     #     {
-    #       a <- ggplot_build(TraitsListInit[[i]][[1]][[j]]) # take the plot data
+    #       a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
     #       if (!is.null(a$data[[1]]$group))
     #       {
     #         a$data[[1]]$species <- j # add species identity in the data
     #         a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
-    # 
-    #         speciesDataInit <- rbind(speciesDataInit,a$data[[1]]) #bind the same species at different time
+    #         
+    #         speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
     #       }
     #     }
     #   }
-    #   speciesListInit[[j]] <- speciesDataInit #this is a list of all the species at each time
+    #   speciesList[[j]] <- speciesData #this is a list of all the species at each time
     # }
     
     if (is.null(window)) window = c(-1,1)
     if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
     
     plot_datTrait <- do.call("rbind",speciesList)
-    
-    # this is not even coding anymore, adding the time shift to the sim after init
-    #plot_datTrait$x <- plot_datTrait$x + TimeMax * dt
-    
-    #plot_datMiracle <- rbind(plot_datTrait,plot_datTraitInit)
-    #print(colGrad)
+
     p3 <- ggplot(plot_datTrait)+
-      geom_line(aes(x=x,y=y, group = group, color = as.factor(species))) +
+      geom_smooth(aes(x=time,y=percentMean, group = group, color = as.factor(species))) +
       scale_x_continuous(name = "Time in years", limits = c(NA,NA))+
       scale_y_continuous(name = "Trait relative proportion to initial value", limits = window)+
       geom_vline(xintercept = 4000, linetype = "dashed") +
@@ -2886,13 +2988,14 @@ plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, com
             legend.key = element_rect(fill = "white"))+ 
       guides(color = guide_legend(nrow=1)) +
       ggtitle(title[1])
-    #print(p3)
-    #plotList[[listPosition]] <-list(p1,p2,p3)
-    # column = what[2]
-    #  a <- list(p3)
+
     
     plotList[[listPosition]] <- p3
+    plot_datList[[listPosition]] <- plot_datTrait
   }
+   
+   if(returnData) return(plot_datList) else{
+   
   plotList <- plotList[lapply(plotList,length)>0] # if a slot is empty
   
   # MULTIPLOT
@@ -2937,6 +3040,7 @@ plotDiffSpFished <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, com
   # }
   # 
   dev.off()
+   }
   toc()
 }
 
@@ -4266,6 +4370,7 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
 {
   
   dataList <- list()
+  exit_df <- data.frame()
   for (dirContentIdx in dir(paste(folder,"/init",sep=""))) # for each sim in the init folder
   {
     if (file.exists(paste(folder,"/init/",dirContentIdx,"/run.Rdata",sep = "")) && file.exists(paste(folder,"/normal/",dirContentIdx,"/run.Rdata",sep = "")) && file.exists(paste(folder,"/fisheries/",dirContentIdx,"/run.Rdata",sep = ""))) # check that the sim has following scenarios as well
@@ -4316,8 +4421,10 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
         for (i in 1:dim(SumPar)[1]) if (SumPar$exit[i] == 0) SumPar$exit[i] = timeMax # the not extinct ones get the end sim as extinction value
         
         DemList <- list()
+
         for (x in SpIdx) # for every species
         {
+          exit <- NA
           DemCount = matrix(data = 0, nrow = (timeMax*dt), ncol =2) # create a matrix that count pop and extinction for each time step *dt
           DemCount[1,1] = 1 # fill the first row
           SpSumPar <- SumPar[which(SumPar$species == x),] # select the right species df
@@ -4342,11 +4449,17 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
                     DemCount[i,2] =  ExCount 
                   }
               }
-              DemCount <- as.data.frame(DemCount)
-              colnames(DemCount) <- c("pop","exit")
+              
+              pop <- DemCount[,1] - DemCount[,2] # pop - extinction
+              DemCount <- as.data.frame(pop) # keep the alive number of phen
+              colnames(DemCount) <- c("pop")
               DemCount$time <- as.numeric(rownames(DemCount))
               DemCount$species <- x
+              DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
+              if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
               DemList[[x]] <- DemCount
+              
+              if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
           }
         }
         scenarioList[[listPosition]] <- do.call(rbind,lapply(DemList,function(x)x)) # store the list as only one dataframe (with the species identity)
@@ -4354,14 +4467,25 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
       dataList[[dirContentIdx]] <- scenarioList
     }
   }
-  
+  colnames(exit_df) <- c("species","extinction")
+
   # do an average across simulation
   plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
-                         apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean),
-                         apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$exit)),1,mean),
-                         apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$pop)),1,mean),
-                         apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$exit)),1,mean))
-  colnames(plot_dat) <- c("time","species","popN","exitN","popF","exitF")
+                         apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean, na.rm = T),
+                         apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$pop)),1,mean, na.rm = T))
+  colnames(plot_dat) <- c("time","species","popN","popF")                      
+  plot_dat$popN[is.na(plot_dat$popN)] <- 0
+  plot_dat$popF[is.na(plot_dat$popF)] <- 0
+  
+  
+  
+  
+  # plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean),
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$exit)),1,mean),
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$pop)),1,mean),
+  #                        apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$exit)),1,mean))
+  # colnames(plot_dat) <- c("time","species","popN","exitN","popF","exitF")
   
   # PLOTTING TIME
   # color gradient
@@ -4378,7 +4502,6 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
     scale_x_continuous(name = "Time (yr)") +
     scale_y_continuous(name = "Number of phenotypes")+
     scale_color_manual(name = "Species", values = colGrad)+ # color gradient
-    #scale_linetype_manual(name = "Fished") +
     theme(legend.title=element_blank(),
           legend.position=c(0.19,0.95),
           legend.justification=c(1,1),
@@ -4388,6 +4511,6 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
     guides(color=guide_legend(override.aes=list(fill=NA)))+
     ggtitle("Variation of phenotype's number throughout the simulation")
   
-  if(returnData) return(plot_dat) else return(p)
+  if(returnData) return(list(plot_dat, exit_df)) else return(p)
   
 }

@@ -37,7 +37,7 @@ biom <-function(object,phenotype=T)
   if (phenotype) BiomPhen <- plotB(biomass)
   BiomSp <- plotB(biomassTot)
   
-  return(list(BiomSp,BiomPhen))
+  if (phenotype) return(list(BiomSp,BiomPhen)) else return(BiomSp)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
@@ -61,8 +61,7 @@ finalTouch <- function(result, dt = 0.1, comments = T)
   Dw = dim(sim[[1]]@n)[3]
   # put all the sim at the same dimension
   biomList <- list()
-  for (i in 1:length(sim))
-    # for each sim
+  for (i in 1:length(sim)) # for each sim
   {
     biom <- array(data = 0, dim = c(dim(sim[[i]]@n)[1], Dsp, Dw), dimnames = list(dimnames(sim[[i]]@n)$time, SummaryParams@species_params$ecotype, SummaryParams@w)) # create an array of the right dimension
     names(dimnames(biom)) = c("time", "species", "size")
@@ -350,6 +349,7 @@ superStich <- function(listOfSim)
   
   trait_params <- MizerParams(a, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda)
   
+  for (i in 1:20) gc()
   
   biom <- do.call(abind, c(lapply(listOfSim, function(isim) isim@n),along = 2))
   dimnames(biom)[[2]] = EcoName
@@ -362,6 +362,7 @@ superStich <- function(listOfSim)
   sim@params = trait_params
   sim@n = biom
   
+  rm(list = "biom", "listOfSim")
   return(sim)
 }
 
