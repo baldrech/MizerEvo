@@ -19,9 +19,9 @@
 
 #setting things up -----------------------
 rm(list = ls())
-dir <-"/data/home/romainf/romain"
-setwd(dir)
-library(ggplot2)#because always need these two
+# dir <-"/data/home/romainf/romain"
+# setwd(dir)
+#library(ggplot2)#because always need these two
 library(reshape2)
 library(plyr)# for aaply
 library(grid)# for grid.newpage (plotSummary)
@@ -29,6 +29,7 @@ library(abind) # to use abind (bind of arrays)
 #library(rmarkdown)
 library(RColorBrewer)
 library(tictoc)
+library(tidyverse)
 
 source("MizerParams-class.r") #to get the Constructor
 source("selectivity_funcs.r") #to get the knife_edge function
@@ -39,25 +40,34 @@ source("TBM1.r") # the model from mizer (more like a set up)
 source("model.r") # my model 
 source("utility.r") # helpful functions
 
-# parametrisation that works for 3sp en deterministic
-file_name = "/eta5"
+# little script to check sim content ----------------
+a<- get(load("eta4and5/9sp/fisheries/run1/run.Rdata"))
+a@params@species_params$knife_edge_size
+a@params@interaction
+a@params@species_params$r_max
+
+# parametrisation that works for 3sp en deterministic ----------
+file_name = "/eta4and5/9sp"
 
 #asymptotic size
 no_sp = 9
+eta = 0.5
 min_w_inf <- 10
 max_w_inf <- 1e5
+RMAX = T
+interaction = 0.5
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
+
 
 #fisheries
 gear_names <- rep("FishingStuff", no_sp)
-knife_edges <- w_inf * 0.25 
+knife_edges <- w_inf * eta 
 
 #other
 t_max = 50
 no_run = 80
-effort = 0
 
-for (i in 1:5)
+for (i in 7:10)
 {
   tic()
   cat(sprintf("Run number %g\n",i))
@@ -66,9 +76,9 @@ for (i in 1:5)
 
 
 sim <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-               min_w_inf = 10, max_w_inf = max_w_inf, RMAX = T, cannibalism = 0.5, #r_mult = 1e2,
-               hartvig = T, f0 = 0.5, eta = 0.5,initTime = 1,
-               effort = effort, #knife_edge_size = knife_edges, gear_names = gear_names, 
+               min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism =interaction, 
+               hartvig = T, f0 = 0.5, eta = eta,initTime = 1,
+               effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
                save_it = T, path_to_save = path_to_save,
                print_it = T, normalFeeding = F, Traits = "eta")
 
@@ -83,6 +93,8 @@ folder <- paste(getwd(),file_name,sep="")
 initFolder <- paste(folder,"/init",sep="")
 dirContent <- dir(initFolder)
 no_run = 40
+dirContent <- dirContent[2]
+
 #sim normal
 for (i in 1:length(dirContent))
 {
@@ -92,9 +104,9 @@ for (i in 1:length(dirContent))
     path_to_save <- paste(folder,"/normal/",dirContent[i],sep = "")
     
     output <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-                   min_w_inf = 10, max_w_inf = max_w_inf, RMAX = T, cannibalism = 0.5, #r_mult = 1e2,
-                   hartvig = T, f0 = 0.5, eta = 0.5,initTime = 1, initCondition = sim,
-                   effort = effort, #knife_edge_size = knife_edges, gear_names = gear_names, 
+                   min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
+                   hartvig = T, f0 = 0.5, eta = eta,initTime = 1, initCondition = sim,
+                   effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
                    save_it = T, path_to_save = path_to_save,
                    print_it = T, normalFeeding = F, Traits = "eta")
     for (j in 1:20) gc()
@@ -109,8 +121,8 @@ for (i in 1:length(dirContent))
     path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
     
     output <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-                      min_w_inf = 10, max_w_inf = max_w_inf, RMAX = T, cannibalism = 0.5, #r_mult = 1e2,
-                      hartvig = T, f0 = 0.5, eta = 0.5,initTime = 1, initCondition = sim,
+                      min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
+                      hartvig = T, f0 = 0.5, eta = eta,initTime = 1, initCondition = sim,
                       effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
                       save_it = T, path_to_save = path_to_save,
                       print_it = T, normalFeeding = F, Traits = "eta")
@@ -118,16 +130,42 @@ for (i in 1:length(dirContent))
   }
 }
 
-file_name = "/eta5"
-no_sp = 9
-plotTraitOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F, SpIdx = seq(1,no_sp), init = T)
-plotFitnessMultiOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F, SpIdx = seq(1,no_sp))
-plotDynamicsMulti(folder = paste(getwd(),file_name,sep=""))
 
-a <- PlotNoSp(sim)
-ggsave(filename = "eta3.png",plot = a)
+# fixing fisheries issue --------------
 
-# one sp run
+# for(i in 1:length(dirContent))
+# {
+#   if (file.exists(paste(folder,"/",dirContent[i],"/run.Rdata",sep = "")))
+#   {
+#     sim <- get(load(paste(folder,"/",dirContent[i],"/run.Rdata",sep="")))
+#     listOfSim[[i]] = sim
+    
+    
+
+for (i in dir(paste(getwd(),"/eta4and5/9sp/fisheries",sep = "")))
+{
+  if (file.exists(paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = "")))
+{
+  sim <- get(load(paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = "")))
+  Nparam = sim@params@species_params
+  for (j in unique(Nparam$species)) Nparam[which(Nparam$species == j),]$knife_edge_size <- knife_edges[j] # update knife edge
+  param <- MizerParams(Nparam, min_w = 0.001, max_w=1e5 * 1.1, no_w = 100, min_w_pp = 1e-10, w_pp_cutoff =1e3, n = 0.75, p=0.75, q=0.8, r_pp=4, kappa=0.05, lambda = 2.05, normalFeeding = F)
+  sim@params <- param
+  save(sim,file = paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = ""))
+}
+  
+}
+
+initCondition <- get(load("testRuns/CopyOffisheries/run1/run.Rdata"))
+
+Nparam = initCondition@params@species_params
+for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edges[i] # update knife edge
+
+param <- MizerParams(Nparam, min_w = 0.001, max_w=1e5 * 1.1, no_w = 100, min_w_pp = 1e-10, w_pp_cutoff =1e3, n = 0.75, p=0.75, q=0.8, r_pp=4, kappa=0.05, lambda = 2.05, normalFeeding = F)
+
+initCondition@params <- param
+
+# one sp run-------------------
 for (i in 2:5)
 {
   path_to_save = paste(getwd(),"/oneSp/2/fisheries/run", i, sep = "")
@@ -244,7 +282,7 @@ plotTraitOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F)
 plotFitnessMultiOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F)
 plotDynamicsMulti(folder = paste(getwd(),file_name,sep=""))
 
-#with parallel
+#with parallel---------------------------
 rm(list = ls())
 library(parallel)
 library(ggplot2)#because always need these two
@@ -320,407 +358,12 @@ for (i in 1:length(sim))
 print((proc.time()-ptm)/60.0)
 toc()
 
-# deterministic runs and fitness calcul
-
-# get a deterministic run to try out
-
-for (i in c(0.35,0.5))
-{
-dt = 0.1
-no_sp = 3
-t_max = 100
-no_run = 5
-effort = 0
-sex_ratio = 0.5
-laststep = t_max * no_run
-
-sim <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "No",w_pp_cutoff = 1e3, erepro = 1,
-               min_w_inf = 10, max_w_inf = 1e3, RMAX = F, cannibalism = 0.5, #r_mult = 1e2,
-               hartvig = T, f0 = 0.5, eta = 0.35,initTime = 1,
-               effort = effort, #knife_edge_size = knife_edges, gear_names = gear_names, 
-               save_it = F, path_to_save = path_to_save,
-               print_it = T, normalFeeding = F, Traits = "eta")
 
 
-# plotCohort(sim,path_to_png = paste(getwd(),sep=""), t_start = 150)
-# plotBiomass(sim,end_time = 250)
-# fitness calcul
-# I want the spawn through life -> last value of total cohortR
-cohortSpan <- seq(100,1500,100)
-no_sp = dim(sim@params@species_params)[1]
-fitness <- array(0,c(no_sp, length(cohortSpan)), dimnames = list(dimnames(sim@n)$species,cohortSpan)) #collect the total spawn per time (start of cohort) per species
-names(dimnames(fitness)) <- list("species","cohort")
-for (cohortGen in cohortSpan)
-{
-  t_start = cohortGen
-  # get rid of the non-existing species at that time
-  SpIdx <- which(sim@n[t_start,,1]>0)
-  # sim@n <- simulation@n[,SpIdx,]
-  # no_sp = dim(sim@n)[2]
-  
-  cat(sprintf("cohort is %g\n",cohortGen))
-  T = 5/dt; # number of time steps you want to follow cohort for
-  #t_start = laststep - T; # setting the start time for tracking the cohort
-  t_start = cohortGen
-  cohortW = array(0, c(no_sp, T+1)); # row vector for following cohort weight
-  cohortS = array(0, c(no_sp, T+1)); # vector for cohort survival
-  cohortR = array(0, c(no_sp, T+1)); # vector for cohort spawning
-  cohortR_sol = array(0, c(no_sp, T+1)); # vector for cohort spawn at size
-  
-  # NEWBORNS OVER LIFETIME
-  cohortW[,1] = sim@params@w[1]; # log weight initially (newborn)
-  cohortS[,1] = sim@n[t_start,,1]; # initial population in spectrum
-  
 
-  
-  for (q in SpIdx){ 
-    cat(sprintf("q is %g\n",q))
-    for (t in seq(1,T)){ # within time period you're interested in
-      #cat(sprintf("t is %g\n",t))
-      
-      cohortWprev = max(which(cohortW[q,t] - sim@params@w >= 0)) # weight bin of cohort from last time step 
-      growth = getEGrowth(sim@params,n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,])
-      cohortW[q,t+1] = cohortW[q,t]+dt*growth[q,cohortWprev] # using growth rate in that bin to update to cohortW(t-t_start+1)
-      z = getZ(object = sim@params, n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,], effort = effort)
-      cohortS[q,t+1] = cohortS[q,t]*exp(-dt*z[q,cohortWprev]) # updating amount surviving using death rate
-      
-      # need to prepare n for no NAN
-      n = sim@n[t_start+t-1,,]*cohortS[,t]/cohortS[,1]
-      n[!is.finite(n)] <- 1e-30
-      
-      e_spawning <- getESpawning(object = sim@params, n = n,n_pp = sim@n_pp[t_start+t-1,])
-      e_spawning_pop <- apply((e_spawning*n),1,"*",sim@params@dw)
-      rdi <- sex_ratio*(e_spawning_pop * sim@params@species_params$erepro)/sim@params@w[sim@params@species_params$w_min_idx] # need to get RDI that way so it is not summed up
-      cohortR[q,t+1] = cohortR[q,t] + dt*rdi[cohortWprev,q]  #[q,cohortWprev]
-      #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
-    }
-    fitness[q,which(cohortGen==cohortSpan)] = cohortR[q,T]
-  }
-}
-
-# need to take the average fitness
-#dimnames(fitness)$species <- do.call(cbind,lapply(as.numeric(strsplit(as.character(dimnames(fitness)$species), "")), function (x) x[1])) # the name of the phenotypes become their first digit
-dimnames(fitness)$species <- sim@params@species_params$species #or I can do that ^^
-SpIdx <- unique(sim@params@species_params$species)
-
-newFit <- array(0,c(length(SpIdx), length(cohortSpan)), dimnames = list(SpIdx,cohortSpan))
-for (i in SpIdx)
-{
-lol <- fitness[which(dimnames(fitness)$species == as.character(SpIdx[i])),]
-lol[lol==0] <- NA
-newFit[i,] <- apply(lol,2,mean,na.rm=T)
-}
-
-newFit[!is.finite(newFit)] <- 0
-
-cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
-
-
-#plot_datF <- melt(fitness)
-plot_datF <- melt(newFit)
-colnames(plot_datF) <- list("species","cohort","fitness")
-
-pF <- ggplot(plot_datF) +
-  geom_line(aes(x=cohort,y=fitness,color = as.factor(species)),size =2) +
-  scale_x_continuous(name = "Cohorts") +
-  scale_y_continuous(name = "Fitness", trans = "log10")+
-  scale_colour_manual(values=cbPalette)+ # colorblind
-    theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-        panel.grid.minor = element_line(colour = "grey92"),legend.position="none", 
-        legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-  ggtitle(NULL)
-
-#pB <- plotBiomass(sim,start_time = 10.1,end_time = 300.1)
-pB <- plotDynamics(sim)
-
-png(filename = paste("fitness",i,".png",sep=""),width = 20,height = 20,units = "cm",res = 500)
-grid.newpage() 
-pushViewport(viewport(layout = grid.layout(nrow=2, ncol=1, 
-                                           widths = unit(20, "cm"), 
-                                           heights = unit(rep(10,2), "cm"))))
-
-print(pF, vp = viewport(layout.pos.row = 1, layout.pos.col = 1)) 
-print(pB, vp = viewport(layout.pos.row = 2, layout.pos.col = 1)) 
-
-dev.off()
-
-}
 
 
 # working on that right now -------------------
-
-# plot fitness over time
-where = paste(getwd(),"/biomassCompareNN1T/normal",sep="")
-where = paste(getwd(),"/biomassCompareNN1T/fisheries",sep="")
-plotFitnessMulti(folder = where, PPMR = F, Sig = F )
-
-  plotFitnessTime <- function(folder, returnData = F, SpIdx = NULL, Mat = T, Sig = T, PPMR = T, comments = T, whatTime = NULL)
-  {
-    window = c(-0.25,0.25)
-    if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
-    
-    listFitnessPlots <-list() #stack the plots at different times
-    for (i in whatTime)
-      listFitnessPlots[[i]] <- plotFitnessMulti(folder = folder,Mat = Mat, PPMR = PPMR, Sig = Sig, returnData = T, whatTime = i, SpIdx = SpIdx)
-    listFitnessPlots <- listFitnessPlots[lapply(listFitnessPlots,length)>0]
-    
-    SpIdx <- seq(1,9)
-    speciesList <- list()
-    for (j in SpIdx) # for every species
-    {
-      speciesData <- NULL
-      for (i in 1:length(listFitnessPlots)) # at each time
-      {
-        if (!is.null(listFitnessPlots[[i]][[1]][[j]]))
-        {
-          a <- ggplot_build(listFitnessPlots[[i]][[1]][[j]]) # take the plot data
-          a$data[[1]]$group <- whatTime[i] # change the group to the right time
-          speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
-        }
-      }
-      speciesList[[j]] <- speciesData #this is a list of all the species at each time
-    }
-    
-    # plot time
-    plotMatStore = list()
-    plotSigStore = list()
-    plotPPMStore = list()
-    
-    temp = NULL
-    for (i in SpIdx) if (!is.null(speciesList[[i]])) temp = c(temp,i) #update SpIdx if species are extinct at all times
-    SpIdx = temp
-    for (i in SpIdx) # do the plots for each species and traits
-    {
-      if (comments) cat(sprintf("plot %i\n",i))
-      #if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
-      
-      if (Mat){
-        plotMatStore[[i]] <-ggplot(speciesList[[i]])+
-          geom_point(aes(x=x,y=y,colour=as.factor(group))) +
-        scale_x_continuous(name = NULL, limits = window)+
-          scale_y_continuous(name = sprintf("Species %i",i))+
-          scale_color_grey(name = "Species")+ # grey
-          theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-                panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
-                legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-          ggtitle(NULL)
-      }
-      if (Sig)
-      {
-        plotSigStore[[i]] <-ggplot(speciesList[[i]])+
-          geom_point(aes(x=x,y=y,colour=as.factor(group))) +
-          geom_line(data =trendList[[i]], aes(x=x,y=y,group = run))+
-          scale_x_continuous(name = NULL, limits = window)+
-          scale_y_continuous(name = NULL, labels = NULL)+
-          theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-                panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-                legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-          ggtitle(title[2])
-      }
-      if(PPMR)
-      {
-        plotPPMStore[[i]] <-ggplot(speciesList[[i]])+
-          geom_point(aes(x=x,y=y,colour=as.factor(group))) +
-          scale_x_continuous(name = NULL, limits = window)+
-          scale_y_continuous(name = NULL, labels = NULL)+
-          theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-                panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-                legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-          ggtitle(title[3])
-      }
-    }
-   
-    if (comments) print("plot done, starting the multiplot")
-    # do the multiplot
-    path_to_png = paste(folder,"/fitnessTime.png",sep="")
-    
-    if (PPMR == F & Sig == F)
-    {
-      png(filename=path_to_png,width = 30, height = 30, units = "cm",res = 1000)
-      rowPos = rep(c(1,2,3),3)
-      colPos = c(rep(1,3),rep(2,3),rep(3,3))
-      grid.newpage() 
-      pushViewport(viewport(layout = grid.layout(nrow=3, ncol=3, 
-                                                 widths = unit(rep(10,3), "cm"), 
-                                                 heights = unit(rep(10,3), "cm"))))
-      for (i in SpIdx)
-      {print(i)
-        print(plotMatStore[[i]], vp = viewport(layout.pos.row = rowPos[i], layout.pos.col = colPos[i])) 
-      }
-      
-    } else {
-      
-      png(filename=path_to_png,width = 30, height = 45, units = "cm",res = 1000)
-      grid.newpage() 
-      pushViewport(viewport(layout = grid.layout(nrow=9, ncol=3, 
-                                                 widths = unit(rep(10,3), "cm"), 
-                                                 heights = unit(rep(5,9), "cm"))))
-      for (i in SpIdx)
-      {
-        print(plotMatStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 1)) 
-        print(plotSigStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 2)) 
-        print(plotPPMStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 3)) 
-      }
-    }
-    dev.off()
-    
-    
-  }
-
-  
-time_range = c(seq(500.1,3900.1,500),3999.1)
-where = paste(getwd(),"/biomassCompareNN1T/normal",sep="")
-plotFitnessTime(folder = where, whatTime = time_range, PPMR = F, Sig = F)
-where = paste(getwd(),"/biomassCompareNN1T/fisheries",sep="")
-plotFitnessTime(folder = where, whatTime = time_range, PPMR = F, Sig = F)
-
-# overlapping of traits
-
-plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T)
-{
- 
-  if (is.null(SpIdx)) SpIdx = seq(1,9)
-  
-  # NO FISHERIES PART
-  # need to load the data first
-  normalList <- bunchLoad(folder = paste(directory,"/normal",sep=""))
-  # get the plots
-  normalTraitsList <- list()
-  for (i in 1:length(normalList))
-  normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T)
-
-speciesListN <- list()
-for (j in SpIdx) # for every species
-{
-  speciesData <- NULL
-  for (i in 1:length(normalTraitsList)) # at each time
-  {
-    if (!is.null(normalTraitsList[[i]][[1]][[j]]))
-    {
-      a <- ggplot_build(normalTraitsList[[i]][[1]][[j]]) # take the plot data
-      a$data[[1]]$group <- i # change the group to the run number
-      speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
-    }
-  }
-  speciesListN[[j]] <- speciesData #this is a list of all the species at each time
-}
-
-# FISHERIES PART
-# need to load the data first
-fishList <- bunchLoad(folder = paste(directory,"/fisheries",sep=""))
-# get the plots
-fishTraitsList <- list()
-for (i in 1:length(fishList))
-  fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T)
-
-speciesListF <- list()
-for (j in SpIdx) # for every species
-{
-  speciesData <- NULL
-  for (i in 1:length(fishTraitsList)) # at each time
-  {
-    if (!is.null(fishTraitsList[[i]][[1]][[j]]))
-    {
-      a <- ggplot_build(fishTraitsList[[i]][[1]][[j]]) # take the plot data
-      a$data[[1]]$group <- i # change the group to the run number
-      speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
-    }
-  }
-  speciesListF[[j]] <- speciesData #this is a list of all the species at each time
-}
-  
-# plot time
-plotMatStore = list()
-plotSigStore = list()
-plotPPMStore = list()
-
-window = c(-0.2,0.2)
-if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
-
-temp = NULL
-for (i in SpIdx) if (!is.null(speciesListN[[i]])) temp = c(temp,i) #update SpIdx if species are extinct at all times
-SpIdx = temp
-
-for (i in SpIdx) # do the plots for each species and traits
-{
-  if (comments) cat(sprintf("plot %i\n",i))
-  #if (i == SpIdx[1]) title = c("a)","b)","c)") else title = NULL
-  
-  if (Mat){
-    plotMatStore[[i]] <-ggplot(speciesListN[[i]])+
-      geom_line(aes(x=x,y=y, group = group)) +#colour=as.factor(group))) +
-      geom_line(data = speciesListF[[i]], aes(x=x,y=y, group = group), linetype = "dashed") +
-      scale_x_continuous(name = NULL)+
-      scale_y_continuous(name = sprintf("Species %i",i), limits = window)+
-      scale_color_grey(name = "Species")+ # grey
-      theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-            panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
-            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-      ggtitle(NULL)
-  }
-  if (Sig)
-  {
-    plotSigStore[[i]] <-ggplot(speciesList[[i]])+
-      geom_point(aes(x=x,y=y,colour=as.factor(group))) +
-      geom_line(data =trendList[[i]], aes(x=x,y=y,group = run))+
-      scale_x_continuous(name = NULL, limits = window)+
-      scale_y_continuous(name = NULL, labels = NULL)+
-      theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-            panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-      ggtitle(title[2])
-  }
-  if(PPMR)
-  {
-    plotPPMStore[[i]] <-ggplot(speciesList[[i]])+
-      geom_point(aes(x=x,y=y,colour=as.factor(group))) +
-      scale_x_continuous(name = NULL, limits = window)+
-      scale_y_continuous(name = NULL, labels = NULL)+
-      theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-            panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-      ggtitle(title[3])
-  }
-}
-  
-if (comments) print("plot done, starting the multiplot")
-# do the multiplot
-path_to_png = paste(directory,"/Trait.png",sep="")
-
-if (PPMR == F & Sig == F)
-{
-  png(filename=path_to_png,width = 30, height = 30, units = "cm",res = 1000)
-  rowPos = rep(c(1,2,3),3)
-  colPos = c(rep(1,3),rep(2,3),rep(3,3))
-  grid.newpage() 
-  pushViewport(viewport(layout = grid.layout(nrow=3, ncol=3, 
-                                             widths = unit(rep(10,3), "cm"), 
-                                             heights = unit(rep(10,3), "cm"))))
-  for (i in SpIdx)
-  {
-    print(plotMatStore[[i]], vp = viewport(layout.pos.row = rowPos[i], layout.pos.col = colPos[i])) 
-  }
-  
-} else {
-  
-  png(filename=path_to_png,width = 30, height = 45, units = "cm",res = 1000)
-  grid.newpage() 
-  pushViewport(viewport(layout = grid.layout(nrow=9, ncol=3, 
-                                             widths = unit(rep(10,3), "cm"), 
-                                             heights = unit(rep(5,9), "cm"))))
-  for (i in SpIdx)
-  {
-    print(plotMatStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 1)) 
-    print(plotSigStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 2)) 
-    print(plotPPMStore[[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 3)) 
-  }
-}
-dev.off()
-  
-}
-
-plotTraitOverlap(directory = folder, PPMR = F, Sig = F)
-  
 
 #fishereis mortality
 source("methods.r") #I'm doing my own methods then!
@@ -891,111 +534,6 @@ sim = processing(output, plot = F, save_it = T)
 #sim = processing(output, plot = F, where =  paste(dir,"/scenario2",sep=""))
 
 gc()
-#parallel -----------------------------------------------------
-# with foreach
-library(ggplot2)#because always need these two
-library(reshape2)
-library(plyr)# for aaply
-library(grid)# for grid.newpage (plotSummary)
-library(abind) # to use abind (bind of arrays)
-library(rmarkdown)
-library(RColorBrewer)
-
-library(foreach)
-library(iterators)
-library(snow)
-library(doSNOW)
-
-cl<-makeCluster(5) # number of CPU cores
-registerDoSNOW(cl)
-
-op <- foreach(i=1:5, .packages = c("ggplot2","plyr","reshape2","grid","abind","RColorBrewer")) %dopar% {
-  
-  #setting things up -----------------------
-  
-  dir <-"/mnt/home/romain/mystuff"
-  setwd(dir)
-  source("MizerParams-class.r") #to get the Constructor
-  source("selectivity_funcs.r") #to get the knife_edge function
-  source("methods.r") #I'm doing my own methods then!
-  source("summaryFunction.r") #to have all the GetSomething functions
-  source("plotFunction.r") #to draw the plots
-  source("TBM1.r") # the model from mizer (more like a set up)
-  source("model.r") # my model 
-  source("utility.r") # helpful functions
-  # Run the model and plots------------------------------
-  
-  
-  output <- myModel(no_sp = 9, t_max = 50, mu = 5, OptMutant = "M2", no_run = 2,
-                    kappa = 0.05, ks=2, min_w_inf = 10, max_w_inf = 100000, h= 95,
-                    #rm =1,
-                    effort = 0,print_it = F)
-  # path_to_save = paste(dir,"40run", i, sep = "")
-  sim = processing(output, plot = F, save_it = F)
-  
-}
-
-#save the output
-dir <-"/mnt/home/romain/mystuff"
-source("utility.r")
-for (i in 1:length(op))
-  {
-  sim = superOpt(op[[i]])
-  path_to_save = paste(dir,"/40run", i, sep = "")
-  ifelse(!dir.exists(file.path(path_to_save)), dir.create(file.path(path_to_save)), FALSE) #create the file if it does not exists
-  
-  save(sim,file = paste(path_to_save,"/run",".Rdata",sep=""))
-}
-
-#with parallel
-library(parallel)
-library(ggplot2)#because always need these two
-library(reshape2)
-library(plyr)# for aaply
-library(grid)# for grid.newpage (plotSummary)
-library(abind) # to use abind (bind of arrays)
-library(rmarkdown)
-library(RColorBrewer)
-
-dir <-"/mnt/home/romain/mystuff"
-setwd(dir)
-source("MizerParams-class.r") #to get the Constructor
-source("selectivity_funcs.r") #to get the knife_edge function
-source("methods.r") #I'm doing my own methods then!
-source("summaryFunction.r") #to have all the GetSomething functions
-source("plotFunction.r") #to draw the plots
-source("TBM1.r") # the model from mizer (more like a set up)
-source("model.r") # my model 
-source("utility.r") 
-
-#(optional) record start time, for timing
-ptm=proc.time()
-
-#unsure  what this setting does
-options(warn=-1) #?
-
-#Adjust this for num of targeted cpu/cores
-# e.g. Numcores = detectCores()-1
-
-numcores=5
-cl <- makeForkCluster(getOption("cl.cores", numcores))
-clusterApplyLB(cl
-               ,x=1:5
-               ,fun=multiRun
-               ,no_sp = 9
-               ,t_max = 100
-               ,mu = 5
-               ,no_run = 40
-               ,min_w_inf = 10
-               ,max_w_inf = 10e5
-               ,effort = 0.2
-               ,fisheries = T)
-stopCluster(cl)
-
-
-#(optional) compare end with start time, for timiing
-print((proc.time()-ptm)/60.0)
-
 
 # plot at different time to compare ------------------
 res = 800
@@ -1028,44 +566,6 @@ for(i in when)
   setwd(paste(dir,"feedStat", sep = ""))
   mytitle = paste("growth t= ",i,".png",sep="")
   dev.print(png, mytitle, width = res, height = 0.6*res) 
-}
-
-# automatisation of the results --------------------
-
-
-for (i in 1:30)
-{
-  
-  dir <-"/home/romain/mystuff"
-  setwd(dir)
-  library(ggplot2)#because always need these two
-  library(reshape2)
-  library(plyr)# for aaply
-  library(grid)# for grid.newpage (plotSummary)
-
-  library(abind) # to use abind (bind of arrays)
-  library(rmarkdown)
-  library(RColorBrewer)
-
-  source("MizerParams-class.r") #to get the Constructor
-  source("selectivity_funcs.r") #to get the knife_edge function
-  source("methods.r") #I'm doing my own methods then!
-  source("summaryFunction.r") #to have all the GetSomething functions
-  source("plotFunction.r") #to draw the plots
-  source("TBM1.r") # the model from mizer (more like a set up)
-  source("model.r") # my model 
-  source("utility.r") # helpful functions
-  gc()
-  
-  output <- myModel(no_sp = 9, t_max = 100, mu = 5, OptMutant = "M2", no_run = 50,
-                    kappa = 0.025, ks=2, min_w_inf = 10, max_w_inf = 100000, h= 85,
-                    #rm =1,
-                    effort = 0)
-  
-  here = paste(dir,"/","50run",i,sep="")
- 
-  processing(output, plot = T, where = here)
-  rm(list = ls())
 }
 
 
