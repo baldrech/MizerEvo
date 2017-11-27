@@ -383,6 +383,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
   #plotList <- list() # to store the plots
   plot_datList <- list() #to store the data
   multiSimInit <- bunchLoad(folder = paste(folder,"/init",sep=""))
+  #for (i in 1:length(multiSimInit)) multiSimInit[[i]] <- superOpt(multiSimInit[[i]])
   
   if(comments) cat("Init sims loaded\n")
   
@@ -392,12 +393,14 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
     {
       listPosition = 1
       multiSim <- bunchLoad(folder = paste(folder,"/normal",sep=""))
+      #for (i in 1:length(multiSim)) multiSim[[i]] <- superOpt(multiSim[[i]])
       title = c("(a) Without fisheries","(b)","(c)")
       cat("Normal runs\n")
     } else if (column == "fisheries") 
     {
       listPosition = 2
       multiSim <- bunchLoad(folder = paste(folder,"/fisheries",sep=""))
+      #for (i in 1:length(multiSim)) multiSim[[i]] <- superOpt(multiSim[[i]])
       title = c("(d) With fisheries","(e)","(f)")
       cat("Fishery runs\n")
     } else stop("I don't know what to plot")
@@ -473,6 +476,8 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
       rm(list = "biom", "phyto", "effort")
       gc()
       
+      sim <- superOpt(sim) 
+      
       longSimList[[x]] <- sim
       
     }
@@ -481,33 +486,35 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
     # get the initial stuff
     SpIdx = sort(unique(longSimList[[1]]@params@species_params$species)) # determine spidx if not already given by user
     no_sp = length(SpIdx) # get the species number from this
-
-  if (comments) cat("Initialisation done\n")
+    
+    if (comments) cat("Initialisation done\n")
     
     for(i in 1:20) gc()
-  
-  sim <- superStich(longSimList)
-  if (comments) cat("Simulations concatened\n")
-  plot_dat <- biom(sim,phenotype = F)
-  if (comments) cat("Phenotypes reunification\n")
-  plot_datList[[listPosition]] <- plot_dat
+    
+    sim <- superStich(longSimList)
+    rm(longSimList)
+    for(i in 1:20) gc()
+    if (comments) cat("Simulations concatened\n")
+    plot_dat <- biom(sim,phenotype = F)
+    if (comments) cat("Phenotypes reunification\n")
+    plot_datList[[listPosition]] <- plot_dat
   }
-
+  
   if (comments) print(toc())
   
   if(returnData) return(plot_datList)
   
- p <-  ggplot(plot_datList[[1]]) +
+  p <-  ggplot(plot_datList[[1]]) +
     geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp)) +
     scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = window) +
     scale_x_continuous(name = "Time in years") +
     theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
           panel.grid.minor = element_line(colour = "grey92"),
           legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        ggtitle(NULL)
+    ggtitle(NULL)
   
- return(p)
-
+  return(p)
+  
 }
 
 
@@ -1083,8 +1090,24 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
   
   z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = object@effort[whatTime])
   dimnames(z)$prey = object@params@species_params$species
-  SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+  #SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+
+  # need to get rid of the extinct species at that time in SpIdx
+  a <- apply(object@n[whatTime,,],1,sum)
   
+  names(a) <- sapply(names(a), function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
+
+  d <- rowsum(a, group = names(a))
+  
+  if (sum(d[,1] == 0)) 
+  {
+    
+    d <- d[-which(d[,1] == 0),]
+    SpIdx <- as.numeric(names(d))
+    
+    
+  } else {SpIdx <- as.numeric(rownames(d))}
+
   z_sp = matrix(data = NA, ncol = dim(z)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(z)$w_prey)) # prepare the new object
   names(dimnames(z_sp))=list("prey","w_prey")
   
@@ -1152,8 +1175,13 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
   plot_dat <- data.frame(value = c(growth), Species = dimnames(growth)[[1]], w = rep(object@params@w, each=length(dimnames(growth)[[1]])))
   p <- ggplot(plot_dat) + 
     geom_line(aes(x=w, y = value, colour = Species)) + 
-    scale_x_continuous(name = "Size", trans="log10") + 
-    scale_y_continuous(name = "growth Level", trans ="log10")+
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
+    scale_y_continuous(name = "instantaneous growth", trans ="log10")+
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
   if(print_it) print(p)
@@ -3546,7 +3574,7 @@ plotPerformance <- function(object)
 
 
 # plot survival en reproduction success and show the lifetime reprod sucess depending on w_mat and sigma
-plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData = F, save_it = F, SpIdx = NULL,Mat = T, PPMR = T, Sigma = T, comments = T, window = c(-1,1), Wmat = NULL)
+plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData = T, save_it = F, SpIdx = NULL,Mat = T, PPMR = F, Sigma = F, comments = T, window = c(-1,1), Wmat = NULL)
 {
   if (comments) cat("plotFitness begins\n")
   if (comments) cat("starting fitness plots\n")
@@ -3586,7 +3614,6 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
     dimnames(abundance)$species = SumPar$species #phenotypes get their species name
     time_range = seq((whatTime-50),whatTime,1)
     
-
     window = window
     
     if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
@@ -3608,12 +3635,10 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
     if (comments) cat(sprintf("spawn calculated\n"))
     
     # which species are not extinct?
-    # print("Spidx before")
-    # print(SpIdx)
     SpIdx = NULL
     for (i in unique(SumPar$species))
       if (sum(abundance[,which(dimnames(abundance)$species == i),]) != 0) # if species is extinct, do not plot anything
-      { a = abundance[,which(dimnames(abundance)$species == i),]   # if only one phen do not plot as apply will bug
+      { a = abundance[,which(dimnames(abundance)$species == i),]   # if only one phen do not plot as apply will bug // could fix this
       if (length(dim(a[,apply(a,2,sum) != 0,])) > 2)
         SpIdx = c(SpIdx,i)
       }
@@ -3642,10 +3667,9 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         geom_line(aes(x = size, y = value, colour = as.factor(species)))+
         scale_x_log10(breaks = c(1 %o% 10^(-3:5)))+
         scale_y_log10(name = "Survival probability")+        
-        #scale_colour_manual(values=cbPalette, name = "Phenotypes")+ # colorblind
         theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
               panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         guides(color=guide_legend(override.aes=list(fill=NA)))+
         ggtitle(NULL)
       
@@ -3660,24 +3684,20 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         geom_line(aes(x = size, y = value, colour = as.factor(species)))+
         scale_x_log10(breaks = c(1 %o% 10^(-3:5)))+
         scale_y_log10(name = "Reproductive success")+        
-        #scale_colour_manual(values=cbPalette, name = "Phenotypes")+ # colorblind
         theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
               panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         guides(color=guide_legend(override.aes=list(fill=NA)))+
         ggtitle(NULL)
       
       # lifetime repro success
-      
       r0<-rowSums(sweep(repros,2,object@params@dw,"*"),na.rm=T)
       
       plot_dat3 <- data.frame(r0, SumPar$w_mat[SumPar$ecotype %in% as.numeric(c(dimnames(abundanceSp)$species))],SumPar$sigma[SumPar$ecotype %in% as.numeric(c(dimnames(abundanceSp)$species))],SumPar$beta[SumPar$ecotype %in% as.numeric(c(dimnames(abundanceSp)$species))]) # %in% is awesome
       colnames(plot_dat3) = list("r0","w_mat","sigma","beta")
       
       #normalise the data here
-      #plot_dat3$w_mat = (plot_dat3$w_mat- SumPar$w_mat[i])/plot_dat3$w_mat
       plot_dat3$w_mat = (plot_dat3$w_mat- Wmat[i])/plot_dat3$w_mat
-      
       
       p3 <-ggplot(plot_dat3)+
         geom_point(aes(x=sigma,y=w_mat,colour=r0, size = r0))+
@@ -3685,8 +3705,8 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         scale_y_continuous(name = "Maturation size")+
         scale_colour_gradientn(colours = terrain.colors(10), name = "r0")+
         theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-              panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              panel.grid.minor = element_line(colour = "grey92"),
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         ggtitle(NULL)
       
       
@@ -3695,8 +3715,8 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         scale_x_continuous(name = "Maturation size", limits = window)+
         scale_y_continuous(name = "r0")+
         theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-              panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              panel.grid.minor = element_line(colour = "grey92"),
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         ggtitle(NULL)
       
       pSigma <-ggplot(plot_dat3)+
@@ -3705,8 +3725,8 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         scale_x_continuous(name = "Width of feeding kernel", limits = window)+
         scale_y_continuous(name = "r0")+
         theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-              panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              panel.grid.minor = element_line(colour = "grey92"),
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         ggtitle(NULL)
       
       
@@ -3715,8 +3735,8 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         scale_x_continuous(name = "Preferred PPMR", limits = window)+
         scale_y_continuous(name = "r0")+
         theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-              panel.grid.minor = element_line(colour = "grey92"),# legend.position="none", 
-              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+              panel.grid.minor = element_line(colour = "grey92"), 
+              legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
         ggtitle(NULL)
       
       #create plot_data4 with the trend line of feeding kernel
@@ -3732,8 +3752,6 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
       }
       plotList[[i]] = list(p1,p2,p3,pW_mat,pSigma,pBeta)
       dataList[[i]] = list(plot_dat1,plot_dat2,plot_dat3,plot_dat4)
-      # print("plotdat")
-      # print(plot_dat3)
     }
     
     listOutput[[x]] = list(plotList,dataList)
@@ -4474,8 +4492,8 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
                          apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean, na.rm = T),
                          apply(do.call(cbind,lapply(dataList, function(x) x[[2]]$pop)),1,mean, na.rm = T))
   colnames(plot_dat) <- c("time","species","popN","popF")                      
-  plot_dat$popN[is.na(plot_dat$popN)] <- 0
-  plot_dat$popF[is.na(plot_dat$popF)] <- 0
+  # plot_dat$popN[is.na(plot_dat$popN)] <- 0
+  # plot_dat$popF[is.na(plot_dat$popF)] <- 0
   
   
   
