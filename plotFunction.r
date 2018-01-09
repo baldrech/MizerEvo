@@ -196,7 +196,7 @@ plotSummary <- function(x, ...){
 
 # plot biomass
 
-plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FALSE, print_it = T){
+plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FALSE, print_it = T, returnData = F){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   biomass <- getBiomass(object) # n * w * dw and sum by species
@@ -276,7 +276,7 @@ plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FAL
   }
   
   if(print_it) print(p)
-  return(p)
+  if (returnData) return(BiomSp) else return(p)
 }
 
 plotDynamicsMulti <- function(folder){
@@ -3612,13 +3612,13 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
     SumPar = object@params@species_params #shortcut
     abundance = object@n #shortcut  
     dimnames(abundance)$species = SumPar$species #phenotypes get their species name
-    time_range = seq((whatTime-50),whatTime,1)
+    time_range = seq((whatTime-2),whatTime,1)
     
     window = window
     
     if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
     
-    abundance=abundance[which(dimnames(abundance)$time == whatTime-50):which(dimnames(abundance)$time == whatTime),,]  #shorten the abundance matrix already
+    abundance=abundance[which(dimnames(abundance)$time == whatTime-2):which(dimnames(abundance)$time == whatTime),,]  #shorten the abundance matrix already
     
     # get the growth at each time step
     growth_mat = array(data = NA,dim = c(length(time_range),length(SumPar$ecotype),length(object@params@w)),dimnames = list(time_range,SumPar$ecotype,object@params@w))
@@ -3751,7 +3751,7 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
         }
       }
       plotList[[i]] = list(p1,p2,p3,pW_mat,pSigma,pBeta)
-      dataList[[i]] = list(plot_dat1,plot_dat2,plot_dat3,plot_dat4)
+      dataList[[i]] = list(plot_dat1,plot_dat2,plot_dat3,plot_dat4,spawnSp)
     }
     
     listOutput[[x]] = list(plotList,dataList)
@@ -4447,13 +4447,14 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
           DemCount[1,1] = 1 # fill the first row
           SpSumPar <- SumPar[which(SumPar$species == x),] # select the right species df
           
-          if(dim(SpSumPar)[1] != 1)
+          if(dim(SpSumPar)[1] != 1) # if more than one phenotype
           {
             for (j in 2:dim(SpSumPar)[1]) # along the df
               DemCount[ceiling(SpSumPar$pop[j]*dt),1] = DemCount[ceiling(SpSumPar$pop[j-1]*dt),1] + 1 # total number of phenotypes at that time
             for (j in 1:dim(SpSumPar)[1]) # along the df 
               if (SpSumPar$exit[j] != timeMax) # do not take into account extinction at the last step (because its not)
                 DemCount[ceiling(SpSumPar$exit[j]*dt),2] = DemCount[ceiling(SpSumPar$exit[j]*dt),2] -1 # an extinction happened at that time
+          } else { DemCount[ceiling(SpSumPar$exit[1]*dt),2] = DemCount[ceiling(SpSumPar$exit[1]*dt),2] -1 } # if only one phenotype in sp
               
               # I have a matrix with holes, need to fill them
               ExCount = 0 
@@ -4478,7 +4479,7 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
               DemList[[x]] <- DemCount
               
               if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
-          }
+          
         }
         scenarioList[[listPosition]] <- do.call(rbind,lapply(DemList,function(x)x)) # store the list as only one dataframe (with the species identity)
       }
