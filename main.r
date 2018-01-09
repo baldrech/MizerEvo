@@ -39,7 +39,7 @@ source("plotFunction.r") #to draw the plots
 source("TBM1.r") # the model from mizer (more like a set up)
 source("model.r") # my model 
 source("utility.r") # helpful functions
-
+#test
 # little script to check sim content ----------------
 a<- get(load("eta4and5/9sp/fisheries/run1/run.Rdata"))
 a@params@species_params$knife_edge_size
