@@ -52,7 +52,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
                     ...){
-  if (hartvig==TRUE)
+  if (hartvig)
   {
     h = 85
     w_pp_cutoff = 1e3
@@ -60,7 +60,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     ks = 10
     sigma = 1
   }
-  if (is.null(initCondition) == TRUE)
+  if (is.null(initCondition))
   {
     firstRun = 1
     s_max = no_run * t_max / dt
@@ -137,6 +137,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     firstRun = max(Nparam$run) +1 # state at which run we're starting
     nameList = initCondition@params@species_params$ecotype # this list keep in memory all the species name (as I lose some in my ecotypes by getting rid of the extinct/ use to give ecotypes namee)
   }
+  
+  # need some specific stuff when running single species model
   oneSpMode = F
   if (no_sp == 1)
   {
@@ -148,23 +150,20 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
   allRun <- list() # save all the runs
   
   for(j in firstRun:no_run){
-    # to keep a semblance of identity in my data, I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
+    # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
     # it means that if I do a sim after another one, the first run wont be one but the previous number of run + one
     if (print_it) cat(sprintf("run = %s\n",j))
     # First run without mutants
-    
     sim <- project(param, t_max = t_max, dt =dt, mu = mu, initial_n = n_init, initial_n_pp=n_pp_init, data = data, extinct = extinct, RMAX=RMAX, OptMutant=OptMutant, M3List = M3List, checkpoint = j, effort = effort, print_it = print_it, predMort = predMort) # init first step
     
-    
     # Post initialisation -------------------
-    if (data==FALSE){ #this thing is here in the case in the case I don't want the normal sim but other stuff
+    if (data==FALSE){ #this thing is here in the case I don't want the normal sim but other stuff
       
       allData <- list() # this list will save the data output of all the projections
       counter = 1 # used to increment the list (I guess there is a better way to do that)
       
       while (length(sim) > 3 ) # ugly but if everything is done, length(sim) = 1, if sim dead, length =2, if a mutant appear, length = 5( sim,time,resident, n , npp)
       {
-        #print("start")
         n_init = sim$n # last time abundance, that will be modified and use as initiation for next projection
         
         # SAVE THE DATA FROM PREVIOUS PROJECTION
@@ -174,31 +173,17 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         # CREATE MUTANTS
         for (i in 1: length(sim$resident))
         {
-          #print("create mutant")
-          # resident = sim$resident[i] # this is the rowname of the resident
-          
-          # resident_params <- sim$data@params@species_params[noResident,] #get the params of the resident
-          
-          resident = sim$resident[i] # this is the ecotype
-          
+          resident = sim$resident[i] # this is the parent phenotype
           resident_params = sim$data@params@species_params[sim$data@params@species_params$ecotype == resident,]
-          
-          #noResident <- rownames(sim$data@param@species_params[sim$data@param@species_params$ecotype == resident,]) # this is the rownumber of the resident
-          
           mutant <- resident_params # create a perfect copy
-          mutant$pop = sim$i_stop + (j-1)*t_max/dt
+          mutant$pop = sim$i_stop + (j-1)*t_max/dt # what i_time does the mutant appear
           mutant$run = j
-          # while (mutant$ecotype %in% sim$data@params@species_params$ecotype) mutant$ecotype = as.numeric(mutant$ecotype) + 1
-          #special case if only one species as I reach easly the limit of 16 digits names
-          # if (oneSpMode)
-          # {
-            mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1]
-            while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep=""))
-          # } else {
-          #   mutant$ecotype =  as.numeric(paste(c(resident, 1), collapse = ""))
-          #   while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(mutant$ecotype) + 1
-          #   nameList = c(nameList,mutant$ecotype)
-          # }
+          
+          # if (oneSpMode) #special case if only one species as I reach easly the limit of 16 digits names
+          # {do something here} else {
+            mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
+            while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+          # } 
           
           # TRAITS
           switch(Traits,
@@ -233,7 +218,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                    sd = as.numeric(mAmplitude *  resident_params["eta"]) # standard deviation
                    mutant["eta"] <- resident_params["eta"] + rnorm(1, 0, sd) # change a bit eta
                    mutant["w_mat"] <- mutant["w_inf"] * mutant["eta"] # update
-                   #cat(sprintf("Its winf/wmat ratio mutes slightly.\n"))
+                   #cat(sprintf("Its wmat/winf ratio mutes slightly.\n"))
                  },
                  all = {
                    # Trait = asymptotic size
@@ -255,26 +240,20 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                    print("congrats, you managed to fuck up somewhere")
                  })
           
-          
-          #print("naming")
-          # I need to specify the name myself as the dataframe way is not consistant and subject to errors. It will work as long as a parent has less than 10 mutants
+          # I need to specify the name myself as the dataframe way is not consistant and subject to errors. It will work as long as a parent has less than 1e5 mutants
           rownames(mutant) = mutant$ecotype
-          # while (rownames(mutant) %in% rownames(sim$data@params@species_params)) rownames(mutant) = as.numeric(rownames(mutant)) + 1
-          
           sim$data@params@species_params <- rbind(sim$data@params@species_params, mutant) #include the mutant in the dataframe
           
           #need to update some suff now that there is one more sp
           no_sp = no_sp + 1
           w_inf <- as.numeric(unlist(sim$data@params@species_params["w_inf"])) # need to recreate the vector
-          #transform(trait_params_df_test, w_inf = as.numeric (w_inf))
           w_mat <-  as.numeric(unlist(sim$data@params@species_params["w_mat"]))
           
-          # so ... I will recreate the "param" object needed for the projection from here
-          #print("reboot df param")
+          # Recreate the "param" object needed for the projection
           trait_params <- MizerParams(sim$data@params@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
           
-          # # this piece of code is from TBM1 to calculate r_max. I don't want to update it however so fuck it 
-          # # warning, beta is not updated here but it's for the calcul of Rmax so osef
+          # # Use this piece of code if you want to update r_max, as it depends on the number of species. I'm not doing it though, r_max is inherited. 
+          # # warning, beta is not updated here
           # alpha_p <- f0 * h * beta^(2 * n - q - 1) * exp((2 * n * (q - 1) - q^2 + 1) * sigma^2 / 2)
           # alpha_rec <- alpha_p / (alpha * h * f0 - ks)
           # # Calculating dw using Ken's code - see Ken's email 12/08/13
@@ -287,35 +266,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           # r_max <- N0_max * g0
           #trait_params@species_params$r_max <- r_max
           
-          
-          
-          
-          
-          
-          
-          # SEND SOME INTITIAL CONDITIONS
-          # what is the first dim of sim[[2]]@n ? (time step) aaargh the object is build of the "right" dimension in projection so it's just square of 0.
-          # re-aaaargh, is there a save for n at each time step? probably not
-          
-          # start a new projection but with the old data
-          # my initial condition are in 
-          
-          
-          
-          # I need to add one row for the mutant!
-          # initialisation of the mutant, what assumptions do I take? only eggs?
-          # add a new row and then sort ascendant order by sp
-          # add only eggs depending on the egg output of the resident or same for every sp?
-          # I could add just a few eggs and let stocasticity happens, but I need to input a biomass limit for extinction
-          # I can use Hartvig data for that: n <10 ^-30 g/m3 to be eliminated
-          
-          #print("initialisation abundance")
-          n_mutant <- rep(0,no_w)
-          
           # abundance of the mutant
-          
-          #n_mutant = 0.05 * sim$data@n[sim$i_stop,dimnames(sim[[1]]@n)$sp ==resident,] # the initial abundance is 5% of the resident pop
-          n_mutant = 0.05 * n_init[dimnames(sim[[1]]@n)$sp ==resident,]
+          n_mutant <- rep(0,no_w)
+          n_mutant = 0.05 * n_init[dimnames(sim[[1]]@n)$sp ==resident,] # the initial abundance is 5% of the resident pop
           n_init[dimnames(sim[[1]]@n)$sp ==resident,]= n_init[dimnames(sim[[1]]@n)$sp ==resident,] - 0.05*n_init[dimnames(sim[[1]]@n)$sp ==resident,] # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
           n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
           rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
@@ -326,9 +279,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           predMort = matrix(data = predMort[1,], nrow = no_sp, ncol = dim(predMort)[2],byrow = T)
           #rownames(predMort) = "prey"
         }
-        
-        # print("end")
-        sim <- project(trait_params, t_max = t_max, dt = dt, i_stop = sim$i_stop, initial_n = n_init, initial_n_pp=sim$n_pp, mu = mu, data = data, extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List,checkpoint = j, effort = effort, print_it = print_it, predMort = predMort ) # add something in the function to give new init param
+        # let's start projecting again
+        sim <- project(trait_params, t_max = t_max, dt = dt, i_stop = sim$i_stop, initial_n = n_init, initial_n_pp=sim$n_pp, mu = mu, data = data, extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List,checkpoint = j, effort = effort, print_it = print_it, predMort = predMort )
       }
       allData[[counter]] <- sim # one last time for the last projection
       
@@ -342,13 +294,14 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         #allData[[length(allData)]] = NULL # delete the last half run
         return(allData)
       }
+      
       # now allData has all the successive runs, lets stitch them
       biomass <- stitch(allData) # biomass is a list of n and n_pp
       
       sim@n = biomass[[1]]
       sim@n_pp = biomass[[2]]
       
-      # now I want to do more run with as initial conditions, the final step of the previous run
+      # now I want to do more run with, as initial conditions, the final step of the previous run
       # but first I need to save it
       allRun[[j]] <- sim
       

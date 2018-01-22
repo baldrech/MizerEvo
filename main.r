@@ -1,35 +1,17 @@
 # This is the main script where you run the simulation (or experiment new things)
-# to run the model, first set up your working directory in "dir"
-# then you can use the function myModel to make the projection
-# the basic options are to set up the number of species and the time of the projection (default of 10 and 100 respectively)
-# the advanced options are mu (default = 2) the mutation rate, extinction (default = TRUE), 
-# RMAX (default = FALSE) to enable/disable the Rmax assumption of Mizer (limitation of eggs number)
-# There is one option called data (default = FALSE) that gives back other things instead of the simulation if I'm checking stuff (the energy allocation for example)
-# After running the model you have to process the output with the "stitch" function and you can plot with "plotDynamics"
-
-# For mutations: 4 options
-# optMutant = M1: mutation are egg density dependent
-# optMutant = M2: mutation is a commom rate between species
-# optMutant = M3: user choose the time of apparition of the mutant, can choose specific mutant as well
-# optMutant = M4: mutants can appear at the same time from different species
-# optMutant = stuff: Default option, disable mutations
-
-# For now just run the section "setting up little model" to get the simulation running!
-
 
 #setting things up -----------------------
 rm(list = ls())
-# dir <-"/data/home/romainf/romain"
-# setwd(dir)
-#library(ggplot2)#because always need these two
-library(reshape2)
-library(plyr)# for aaply
-library(grid)# for grid.newpage (plotSummary)
-library(abind) # to use abind (bind of arrays)
-#library(rmarkdown)
-library(RColorBrewer)
-library(tictoc)
-library(tidyverse)
+require(ggplot2)#because always need these two
+require(reshape2)
+require(plyr)# for aaply
+require(grid)# for grid.newpage (plotSummary)
+require(abind) # to use abind (bind of arrays)
+require(rmarkdown)
+require(RColorBrewer)
+require(tictoc)
+require(limSolve)
+#require(tidyverse)
 
 source("MizerParams-class.r") #to get the Constructor
 source("selectivity_funcs.r") #to get the knife_edge function
@@ -39,63 +21,62 @@ source("plotFunction.r") #to draw the plots
 source("TBM1.r") # the model from mizer (more like a set up)
 source("model.r") # my model 
 source("utility.r") # helpful functions
-#test
+
 # little script to check sim content ----------------
-a<- get(load("eta4and5/9sp/fisheries/run1/run.Rdata"))
+a<- get(load("eta5/fisheries/run1/run.Rdata"))
 a@params@species_params$knife_edge_size
 a@params@interaction
 a@params@species_params$r_max
 
-# parametrisation that works for 3sp en deterministic ----------
-file_name = "/eta4and5/9sp"
+# multi species simulations ----------
+file_name = "/Test"
 
-#asymptotic size
+# PARAMETERS
+# physio
 no_sp = 9
 eta = 0.5
 min_w_inf <- 10
 max_w_inf <- 1e5
 RMAX = T
 interaction = 0.5
-w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
+w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
-
-#fisheries
+# fisheries
 gear_names <- rep("FishingStuff", no_sp)
 knife_edges <- w_inf * eta 
 
-#other
+# other
 t_max = 50
-no_run = 80
+no_run = 2
+no_sim = 1
 
-for (i in 7:10)
+# initialisation phase (4000 yr)
+for (i in 1:no_sim)
 {
   tic()
-  cat(sprintf("Run number %g\n",i))
+  cat(sprintf("Simulation number %g\n",i))
   path_to_save = paste(getwd(),file_name,"/init/run", i, sep = "")
   
+  sim <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
+                 max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
+                 OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1,
+                 effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
+                 save_it = T, path_to_save = path_to_save,
+                 print_it = T, normalFeeding = F, Traits = "eta")
 
-
-sim <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-               min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism =interaction, 
-               hartvig = T, f0 = 0.5, eta = eta,initTime = 1,
-               effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-               save_it = T, path_to_save = path_to_save,
-               print_it = T, normalFeeding = F, Traits = "eta")
-
-rm(sim) # clean behind
+#rm(sim)
 for (j in 1:20) gc()
 toc()
 }
 
-# starting from previous abundance
+# simulation after initialisation
 
 folder <- paste(getwd(),file_name,sep="")
 initFolder <- paste(folder,"/init",sep="")
 dirContent <- dir(initFolder)
 no_run = 40
-dirContent <- dirContent[2]
 
-#sim normal
+# NO fisheries
 for (i in 1:length(dirContent))
 {
   if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
@@ -103,16 +84,17 @@ for (i in 1:length(dirContent))
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/normal/",dirContent[i],sep = "")
     
-    output <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-                   min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
-                   hartvig = T, f0 = 0.5, eta = eta,initTime = 1, initCondition = sim,
+    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
+                   max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
+                   OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1, initCondition = sim,
                    effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
                    save_it = T, path_to_save = path_to_save,
                    print_it = T, normalFeeding = F, Traits = "eta")
+    rm(output)
     for (j in 1:20) gc()
   }
 }
-#sim fish
+# Fisheries
 for (i in 1:length(dirContent))
 {
   if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
@@ -120,169 +102,22 @@ for (i in 1:length(dirContent))
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
     
-    output <- myModel(no_sp = no_sp, t_max = t_max, no_run = no_run, OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1,
-                      min_w_inf = 10, max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
-                      hartvig = T, f0 = 0.5, eta = eta,initTime = 1, initCondition = sim,
+    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
+                      max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
+                      OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1, initCondition = sim,
                       effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
                       save_it = T, path_to_save = path_to_save,
                       print_it = T, normalFeeding = F, Traits = "eta")
+    rm(output)
     for (j in 1:20) gc()
   }
 }
 
 
-# fixing fisheries issue --------------
-
-# for(i in 1:length(dirContent))
-# {
-#   if (file.exists(paste(folder,"/",dirContent[i],"/run.Rdata",sep = "")))
-#   {
-#     sim <- get(load(paste(folder,"/",dirContent[i],"/run.Rdata",sep="")))
-#     listOfSim[[i]] = sim
-    
-    
-
-for (i in dir(paste(getwd(),"/eta4and5/9sp/fisheries",sep = "")))
-{
-  if (file.exists(paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = "")))
-{
-  sim <- get(load(paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = "")))
-  Nparam = sim@params@species_params
-  for (j in unique(Nparam$species)) Nparam[which(Nparam$species == j),]$knife_edge_size <- knife_edges[j] # update knife edge
-  param <- MizerParams(Nparam, min_w = 0.001, max_w=1e5 * 1.1, no_w = 100, min_w_pp = 1e-10, w_pp_cutoff =1e3, n = 0.75, p=0.75, q=0.8, r_pp=4, kappa=0.05, lambda = 2.05, normalFeeding = F)
-  sim@params <- param
-  save(sim,file = paste(getwd(),"/eta4and5/9sp/fisheries/",i,"/run.Rdata",sep = ""))
-}
-  
-}
-
-initCondition <- get(load("testRuns/CopyOffisheries/run1/run.Rdata"))
-
-Nparam = initCondition@params@species_params
-for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edges[i] # update knife edge
-
-param <- MizerParams(Nparam, min_w = 0.001, max_w=1e5 * 1.1, no_w = 100, min_w_pp = 1e-10, w_pp_cutoff =1e3, n = 0.75, p=0.75, q=0.8, r_pp=4, kappa=0.05, lambda = 2.05, normalFeeding = F)
-
-initCondition@params <- param
-
-# one sp run-------------------
-for (i in 2:5)
-{
-  path_to_save = paste(getwd(),"/oneSp/2/fisheries/run", i, sep = "")
-  #asymptotic size
-  no_sp = 2
-  size = 1e2
-  min_w_inf <- 10
-  max_w_inf <- 1e2
-  w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
-  
-  #fisheries
-  gear_names <- rep("FishingStuff", no_sp)
-  knife_edges <- w_inf * 0.25 
-  
-  output <- myModel(no_sp = no_sp, t_max = 100, no_run = 20, w_pp_cutoff = 1e4, kappa = 0.00005,
-                    min_w_inf = min_w_inf, max_w_inf = max_w_inf,
-                    effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
-                    print_it = T, normalFeeding = F, hartvig = T, Traits = F)
-  
-  sim = processing(output, plot = F, where =  path_to_save,save_it = F) #handle data and save not optimised output
-  gc()
-  simOpt = superOpt(sim) #optimise output
-  save(simOpt,file = paste(path_to_save,"/run",".Rdata",sep="")) #save it
-  rm(sim,output) # clean behind
-  for (j in 1:20) gc()
-}
-
-plotTraitOverlap(directory = paste(dir,"/eta3",sep=""),SpIdx = seq(1,3),PPMR = F,Sig = F)
 
 
-TotAnalysis(folder = paste(getwd(),"/biomassCompareNN1T/normal",sep=""))
 
-dualAnalysis(folder = paste(getwd(),"/biomassCompareNN1T",sep=""),SpIdx = seq(2,9,1), biomass = F, PPMR = F, Sig = F, trait = T, fitness = F)
-
-dualAnalysis(folder = paste(getwd(),"/biomCompareNN3T",sep=""),SpIdx = seq(2,9,1))
-
-# multiple runs
-file_name = "/eta2"
-
-for (i in 1:1)
-{
-  tic()
-  cat(sprintf("Run number %g\n",i))
-  path_to_save = paste(getwd(),file_name,"/init/run", i, sep = "")
-  #asymptotic size
-  no_sp = 9
-  min_w_inf <- 10
-  max_w_inf <- 1e5
-  w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
-  
-  #fisheries
-  gear_names <- rep("FishingStuff", no_sp)
-  knife_edges <- w_inf * 0.25 
-  
-  output <- myModel(no_sp = no_sp, t_max = 50, no_run = 80, z0pre = 0, kappa = 0.01,
-                    min_w_inf = min_w_inf, max_w_inf = max_w_inf, # cannibalism = 1,
-                    effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-                    save_it = T, path_to_save = path_to_save, hartvig = T,
-                    print_it = T, normalFeeding = F, Traits = "eta")
-  
-  #rm(output) # clean behind
-  for (j in 1:20) gc()
-  toc()
-}
-plotDynamics(output)
-# starting from previous abundance
-
-folder <- paste(getwd(),file_name,sep="")
-initFolder <- paste(folder,"/init",sep="")
-dirContent <- dir(initFolder)
-#asymptotic size
-no_sp = 9
-min_w_inf <- 10
-max_w_inf <- 1e5
-w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
-
-#fisheries
-gear_names <- rep("FishingStuff", no_sp)
-knife_edges <- w_inf * 0.25 
-
-#sim normal
-for (i in 1:length(dirContent))
-{
-  if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
-  {
-    sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
-path_to_save <- paste(folder,"/normal/",dirContent[i],sep = "")
-output <- myModel(no_sp = no_sp, t_max = 50, no_run = 40, z0pre = 0, #w_pp_cutoff = 1e4, kappa = 0.00005,
-                  min_w_inf = min_w_inf, max_w_inf = max_w_inf, # cannibalism = 1,
-                  effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-                  save_it = T, path_to_save = path_to_save, initCondition = sim,
-                  print_it = T, normalFeeding = F, Traits = "eta")
-for (j in 1:20) gc()
-}
-}
-#sim fish
-for (i in 1:length(dirContent))
-{
-  if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
-  {
-    sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
-    path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
-    output <- myModel(no_sp = no_sp, t_max = 50, no_run = 40,  z0pre = 0, #w_pp_cutoff = 1e4, kappa = 0.00005,
-                      min_w_inf = min_w_inf, max_w_inf = max_w_inf, # cannibalism = 1,
-                      effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
-                      save_it = T, path_to_save = path_to_save, initCondition = sim,
-                      print_it = T, normalFeeding = F, Traits = "eta")
-    for (j in 1:20) gc()
-  }
-}
-
-file_name = "/eta4"
-plotTraitOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F)
-plotFitnessMultiOverlap(directory = paste(getwd(),file_name,sep=""),PPMR = F,Sig = F)
-plotDynamicsMulti(folder = paste(getwd(),file_name,sep=""))
-
-#with parallel---------------------------
+#with parallel / need to update the function--------------------------- 
 rm(list = ls())
 library(parallel)
 library(ggplot2)#because always need these two
@@ -364,210 +199,23 @@ toc()
 
 
 # working on that right now -------------------
+# trait value picking
+# Trait = eta
+mAmplitude = 0.05
+eta = 0.5
+sd = as.numeric(mAmplitude *  eta) # standard deviation
+#x <- eta + rnorm(1, 0, sd) # change a bit eta
 
-#fishereis mortality
-source("methods.r") #I'm doing my own methods then!
+df = NULL
+for (i in 1:10000)  df <- c(df,( rnorm(1, 0, sd)))
 
-p <- plotFM(sim)
+summary(df)
+plot(df)
+plot(density(df))
 
-plotFM <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), print_it = TRUE, ...){
-  survivant = object@params@species_params[object@params@species_params$extinct ==0,]$ecotype # get the non-extinct phen
-  
-   object@n = object@n[,as.character(survivant),] #get rid of the species extinct in the abundance data
-  
-  
-  f_time <- getFMort(object, time_range=time_range, drop=FALSE)#, ...)
-  f <- apply(f_time, c(2,3), mean)
-  plot_dat <- data.frame(value = c(f), Species = dimnames(f)[[1]], w = rep(object@params@w, each=nrow(object@params@species_params)))
-  #p <- ggplot(plot_dat) + geom_line(aes(x=w, y = value, colour = Species, linetype=Species)) + scale_x_continuous(name = "Size", trans="log10") + scale_y_continuous(name = "Total fishing mortality", lim=c(0,max(plot_dat$value)))
-
-    p <- ggplot(plot_dat) + 
-      geom_line(aes(x=w, y = value, group = Species)) +
-      scale_x_continuous(name = "Size", trans="log10") + 
-      scale_y_continuous(name = "Total fishing mortality", lim=c(0,max(plot_dat$value))) +
-    theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-          panel.grid.minor = element_line(colour = "grey92"), legend.position="none", 
-          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-      ggtitle("Fisheries mortality")
-  
-
-}
-
-ggsave("mort.png", plot = p)
-
-
-#' @rdname getFMort-methods
-#' @aliases getFMort,MizerParams,matrix-method
-setMethod('getFMort', signature(object='MizerParams', effort='matrix'),
-          function(object, effort, ...){
-            fMortGear <- getFMortGear(object, effort, ...)
-            fMort <- apply(fMortGear, c(1,3,4), sum)
-            return(fMort)
-          })
-
-#' @rdname getFMort-methods
-#' @aliases getFMort,MizerSim,missing-method
-setMethod('getFMort', signature(object='MizerSim', effort='missing'),
-          function(object, effort, time_range=dimnames(object@effort)$time, drop=TRUE, ...){
-            
-            
-            time_elements <- get_time_elements(object,time_range, slot="effort")
-            
-            fMort <- getFMort(object@params, object@effort, ...)
-            
-            return(fMort[time_elements,,,drop=drop])
-          })
-
-
-get_time_elements <- function(sim,time_range,slot_name="n"){
-  if (!(slot_name %in% c("n","effort")))
-    stop("'slot_name' argument should be 'n' or 'effort'")
-  if (!is(sim,"MizerSim"))
-    stop("First argument to get_time_elements function must be of class MizerSim")
-  time_range <- range(as.numeric(time_range))
-  # Check that time range is even in object
-  sim_time_range <- range(as.numeric(dimnames(slot(sim,slot_name))$time))
-  if ((time_range[1] < sim_time_range[1]) | (time_range[2] > sim_time_range[2]))
-    stop("Time range is outside the time range of the modell")
-  time_elements <- (as.numeric(dimnames(slot(sim,slot_name))$time) >= time_range[1]) & (as.numeric(dimnames(slot(sim,slot_name))$time) <= time_range[2])
-  names(time_elements) <- dimnames(slot(sim,slot_name))$time
-  return(time_elements)
-}
-# number of phenotypes per species through time --------------------
-ID = sim@params@species_params
-# I will calculate the number of apparition and number of extinction per species and make the difference to have the number of phen alive at time
-# I need to calculate at each time step
-dt = 0.1
-for (i in unique(ID$species))
-{
-  a = matrix(data = NA, nrow = (ID$timeMax[1]), ncol = 3, dimnames = list(seq(1:(ID$timeMax[1])), c("pop","ext","current")))
-  
-  for (j  in 1:dim(a)[1])
-  {
-    if (any(rownames(a)[j] == ID$pop))
-  }}
-
-PlotNoSp <- function(object, print_it = T, species = F){
-  SumPar = cbind(object@params@species_params$pop,object@params@species_params$extinct) # weird things happen without the as.numeric
-  colnames(SumPar) = c("Apparition","Extinction")
-  rownames(SumPar) = object@params@species_params$ecotype
-  SumPar = SumPar[order(SumPar[,1],decreasing=FALSE),]
-  SumPar = as.data.frame(SumPar) # little dataframe with species apparition and extinction
-  for (i in 1:dim(SumPar)[1]) if (SumPar$Extinction[i] == 0) SumPar$Extinction[i] = object@params@species_params$timeMax[1] # the not extinct ones get the end sim as extinction value
-  
-  avg = matrix(data = 0, nrow = object@params@species_params$timeMax[1], ncol =4)
-  avg[,1] = seq(1:object@params@species_params$timeMax[1])*0.1
-  ApCount = length(which(SumPar$Apparition == 0)) # number of starting species
-  ExCount = 0
-  SumParEx = SumPar[order(SumPar$Extinction,decreasing=F),] #need this order for extinction in loop
-  
-  if (species)
-  {
-    # work to do here
-    
-  }
-  
-  
-  
-  for (i in 1:object@params@species_params$timeMax[1]) # for each time step
-  {
-    for (j in 1:dim(SumPar)[1])
-      if (SumPar$Apparition[j] <= i & SumPar$Extinction[j] >= i) # how many phenotypes are alive right now?
-        avg[i,2] = avg[i,2] + 1
-      
-      if (i %in% SumPar$Apparition) ApCount = ApCount + 1 # how many in total
-      avg[i,3] = ApCount
-      
-      if (i %in% SumParEx$Extinction) ExCount = ExCount + 1 #how many extinct?
-      avg[i,4] = ExCount
-  }
-  
-  avg = as.data.frame(avg)
-  dimnames(avg)[[2]] = list("time", "number","apparition","extinction") # dataframe of the number of species at each time step
-  
-  p <- ggplot(avg) +
-    geom_smooth(aes(x = time, y = number, color = "green")) +
-    geom_smooth(aes(x=time, y = apparition, color = "blue"))+
-    geom_smooth(aes(x=time, y = extinction, color = "red"))+
-    scale_x_continuous(name = "Time (yr)") +
-    scale_y_continuous(name = "Number of phenotypes")+
-    scale_colour_discrete(labels = c("Total","Alive","Extinct"))+
-    theme(legend.title=element_blank(),
-          legend.position=c(0.19,0.95),
-          legend.justification=c(1,1),
-          legend.key = element_rect(fill = "white"),
-          panel.background = element_rect(fill = "white", color = "black"),
-          panel.grid.minor = element_line(colour = "grey92"))+
-    guides(color=guide_legend(override.aes=list(fill=NA)))+
-    ggtitle("Variation of phenotype's number throughout the simulation")
-  
-  if (print_it)  print(p)
-  
-  return(p)
-}
-
-
-
-
-## Fisheries scenario with all species fished, selectivity at maturation size -------------------------
-
-#asymptotic size
-no_sp = 9
-min_w_inf <- 10
-max_w_inf <- 1e5
-w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp)
-
-#dividing species between the gears (fished and non-fished)
-other_gears <- w_inf >= 10000
-gear_names <- rep("None", no_sp)
-gear_names[other_gears] <- "FishingStuff"
-
-#setting up knife edge
-knife_edges <- w_inf * 0.35 # at maturation size
-# fisheries are primitve now, so I need to set the knife edge a lot above the size of the species that I do not want to fish
-#knife_edges[1:6] <-1e6
-
-output <- myModel(no_sp = no_sp, t_max = 100, no_run = 40,
-                  kappa = 0.05, min_w_inf = min_w_inf, max_w_inf = max_w_inf, h = 95, 
-                  effort = 0.2, knife_edge_size = knife_edges, gear_names = gear_names, print_it = T)
-sim = processing(output, plot = F, save_it = T)
-#sim = processing(output, plot = F, where =  paste(dir,"/scenario2",sep=""))
-
-gc()
-
-# plot at different time to compare ------------------
-res = 800
-
-plotDynamics(sim, species = T)
-setwd(paste(dir,"feedStat", sep = ""))
-mytitle = "biomass.png"
-dev.print(png, mytitle, width = res, height = 0.6*res) 
-
-plotSS(sim)
-setwd(paste(dir,"feedStat", sep = ""))
-mytitle = "sizespectrum.png"
-dev.print(png, mytitle, width = res, height = 0.6*res) 
-
-
-when = c(100,500,1000,1500)
-for(i in when)
-{
-  plotFood(sim, time_range = i)
-  setwd(paste(dir,"feedStat", sep = ""))
-  mytitle = paste("feeding t= ",i,".png",sep="")
-  dev.print(png, mytitle, width = res, height = 0.6*res) 
-  
-  plotUdead(sim, time_range = i)
-  setwd(paste(dir,"feedStat", sep = ""))
-  mytitle = paste("mortality t= ",i,".png",sep="")
-  dev.print(png, mytitle, width = res, height = 0.6*res) 
-  
-  plotGrowth(sim, time_range = i)
-  setwd(paste(dir,"feedStat", sep = ""))
-  mytitle = paste("growth t= ",i,".png",sep="")
-  dev.print(png, mytitle, width = res, height = 0.6*res) 
-}
-
+x <- seq(-0.5,0.5, length=500)
+y<-dnorm(x,mean=0, sd=0.025)
+plot(x,y, type="l")
 
 # Plots of every kind of output + for loop to see the variation of one parameter ------------------
 
@@ -1342,110 +990,6 @@ ggplot(MEggR) +
 
 
 
- # paper plots ----------------------------
- # need some data to play with
- res = 650 # figure resolution
- subdir = "/paper" # where to store the plots
- t_max = 100
- no_sp = 9
- mu = 5
- no_run = 4
- dt = 0.1
- # first run with mutants
- output <- myModel(no_sp = no_sp, t_max = t_max, mu = mu, OptMutant = "M2", RMAX = TRUE, kappa = 0.008, cannibalism = 1, r_mult = 1e0,
-                   erepro = 0.1, min_w_inf = 10, p =0.75, ks=2, max_w_inf = 10000, extinct = TRUE, Traits = TRUE, 
-                   hartvig = TRUE, no_run = no_run, effort = 0)#,rm =1)
- #checking for errors
- param = output[[2]]@species_params
- sum(param$error)
- paramS = data.frame(param$species,param$ecotype,param$pop,param$extinct,param$run,param$error)
- 
- simMute = processing(output, plot = F)
- 
-
-# then 1 run to get the data of everything, mutations not allowed
-output <- myModel(no_sp = 9, t_max = 50, mu = 5, OptMutant = "yo",  
-                     #min_w_inf = 10, 
-                      #rm = i,
-                     #max_w_inf = 10, 
-                      no_run = 1, effort = 0, k0 = 25, r_pp = 4, kappa = 0.008, 
-                     data = TRUE, param = simMute@params,
-                     ks = 2)
-   # sort the output
-   energy = output[[1]]
-   rd = output[[2]]
-   eggs = output[[3]]
-   sim = output[[4]]
-   food = output[[5]]
-   m2 = output[[6]]
-   z = output[[7]]
-   m2_background = output[[8]]
-   phi_fish = output[[9]]
-   phi_pltk = output[[10]]
-   end = dim(energy)[1]
-   
-   ifelse(!dir.exists(file.path(dir, subdir)), dir.create(file.path(dir, subdir)), FALSE) #create the file if it does not exists
-   
-   # dynamics plots----------------------------
-   # Biomass
-   biomass <- getBiomass(sim) # n * w * dw and sum by species
-   Sbm <- melt(biomass) # melt for ggplot
-   names(Sbm) = list("time","sp","value") #,"bloodline") # just in case
-   min_value <- 1e-300
-   Sbm <- Sbm[Sbm$value >= min_value,]
-   colourCount = length(unique(Sbm$sp))
-   getPalette = colorRampPalette(brewer.pal(9, "Set1"))# increase the number of colors used
-   Sbm$bloodline = sapply(Sbm[,2], function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
-   
-  # Abm = Sbm[Sbm$bloodline == 1,] to plot a specific sepcies
-   
-       ggplot(Sbm) +
-       geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp)) +
-       scale_y_log10(name = "Biomass in g.m^-3", limits = c(1e-13, NA), breaks = c(1 %o% 10^(-11:-1))) +
-       scale_x_continuous(name = "Time in years") +
-       labs(color='Species') +
-       theme(legend.key = element_rect(fill = "white"))+
-       theme_bw()+
-       scale_color_grey()
-
-   setwd(paste(dir,subdir, sep = "")) #to have the figures in the right directory
-   mytitle = paste("biomass",".png", sep = "")
-   dev.print(png, mytitle, width = res, height = 0.6*res) 
-   
-# size spectrum
-   time_range = max(as.numeric(dimnames(sim@n)$time))
-   min_w = min(sim@params@w) / 100
-   time_elements <- get_time_elements(sim, time_range)
-   spec_n <- apply(sim@n[time_elements, , , drop = FALSE], c(2, 3), mean)
-   background_n <- apply(sim@n_pp[89.2:99.2, , drop = FALSE], 2, mean)
-   spec_n <- sweep(spec_n, 2, sim@params@w, "*")
-   background_n <- background_n * sim@params@w_full
-   y_axis_name = "Biomass"
-    
-     # Make data.frame for plot
-     plot_datSP <- data.frame(value = c(spec_n), Species = dimnames(spec_n)[[1]], w = rep(sim@params@w, each=nrow(sim@params@species_params)), bloodline = sim@params@species_params$species)
-     plot_datPkt <- data.frame(value = c(background_n), Species = "Background", w = sim@params@w_full)
-     # lop off 0s in background and apply min_w
-     plot_datSP <- plot_datSP[(plot_datSP$value > 0) & (plot_datSP$w >= min_w),]
-     plot_datPkt <- plot_datPkt[(plot_datPkt$value > 0) & (plot_datPkt$w >= min_w),]
-     getPalette = colorRampPalette(brewer.pal(9, "Set1"))# increase the number of colors used
-     
-     
-  ggplot(plot_datSP) + 
-       geom_line(aes(x=w, y = value, colour = as.factor(bloodline), group = Species)) + 
-       geom_line(data = plot_datPkt, aes(x = w, y = value, colour = Species), size = 1.5) +
-       scale_x_log10(name = "Size in g", breaks = c(1 %o% 10^(-6:5)))+
-       scale_y_log10(name = "Abundance density in individuals.m^-3", limits = c(1e-27,1e4)) +
-       #scale_color_discrete(name = "Species")+
-       theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"))+
-       theme_bw()+
-       scale_color_grey(name = "Species")
-   
-     
-   setwd(paste(dir,subdir, sep = "")) #to have the figures in the right directory
-   mytitle = paste("sizespectrum_",".png", sep = "")
-   dev.print(png, mytitle, width = res, height = 0.6*res) 
-   
    # feeding plots----------------
    #behvior of gamma with the traits
    # gamma study
@@ -1521,458 +1065,6 @@ output <- myModel(no_sp = 9, t_max = 50, mu = 5, OptMutant = "yo",
  
 # the result is shit  
 
-  # traits dynamics ----------------
-  # Traits plots
-  # little initialisation to plot the trait values
-  SumPar = sim@params@species_params
-  TT = cbind(SumPar$species,as.numeric(SumPar$ecotype),SumPar$pop,SumPar$extinct,SumPar$w_mat,SumPar$beta,SumPar$sigma) # weird things happen without the as.numeric
-  colnames(TT) = c("Lineage","Ecotype","Apparition","Extinction","Maturation_size","PPMR","Diet_breadth")
-  rownames(TT) = rownames(SumPar)
-  TT = TT[order(TT[,1],decreasing=FALSE),]
-  TT = as.data.frame(TT)
-  
-  for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = SumPar$timeMax[i]
-  
-  
-  # I'm going to do a weighted mean so I need to multiply each trait by their abundance proportion to the other (sum of the weights equal 1)
-  # 1 matrix of summed abundance of mature ind at each time step
-  truc = sim@n
-  # put 0 in sim@n when w < w_mat
-  for (i in 1:dim(truc)[1]) # for each time step
-  {
-    for (j in 1:dim(truc)[2]) # for each ecotypes
-    {
-      w_lim = sim@params@species_params$w_mat[j] # get the maturation size of the ecotype
-      S <- numeric(length(sim@params@w))
-      S[sapply(w_lim, function(i) which.min(abs(i - sim@params@w)))] <- 1 # find what w bin is the closest of the maturation size
-      NoW_mat = which(S == 1) # what is the col number of that size bin
-      truc[i,j,1:NoW_mat-1] <-0 # everything under this value become 0
-    }
-  }
-  abundanceM = apply(truc, c(1,2),sum) # sum the abundance left 
-  
-  #2 normalisation per species 
-  colnames(abundanceM) = sim@params@species_params$species
-  abundanceNormal = matrix(0,nrow = dim(abundanceM)[1], ncol = dim(abundanceM)[2])
-  
-  # I am getting rid of the species which went instinct at the begining
-  SpIdx = NULL
-  for (i in unique(sim@params@species_params$species))
-    if (sum(abundanceM[,i]) != 0 & dim(SumPar[SumPar$species == i,])[1] != 1)
-      SpIdx = c(SpIdx,i)
-  
-  #  I also need to get rid of the species that went extinct without having mutants (no trait variation)
-  
-  
-  for (i in SpIdx)
-  {
-    abundanceSp = abundanceM # save to manip
-    abundanceSp[,which(colnames(abundanceM) != i)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
-    abundanceSp = sweep(abundanceSp,1,apply(abundanceSp,1,sum),"/") # normalise
-    abundanceSp[is.nan(abundanceSp)] <-0
-    abundanceNormal = abundanceNormal + abundanceSp # I just need to add them up to get the final matrix
-  }
-  #colnames(abundanceNormal) = sim@params@species_params$ecotype
-  
-  # Maturation size---------------
-  #3 Multiply by their trait value
-  abundanceT = sweep(abundanceNormal,2,sim@params@species_params$w_mat,"*")
-  
-  # Calculate mean at each time step
-  TotMean = matrix(0, nrow = dim(abundanceT)[1], ncol = length(unique(sim@params@species_params$species)), dimnames = list(rownames(abundanceT),unique(sim@params@species_params$species)))
-  names(dimnames(TotMean)) = list("time","species")
-  
-  for (i in SpIdx)
-  {
-    AMean = abundanceT[,which(colnames(abundanceT) == i)] # get the portion of the matrix I want (right species)
-    if (is.null(dim(AMean)) ==F) AMean = apply(AMean,1,sum) # it is already weighted so I'm just summing to get the mean # if only one sp no need to do it
-    TotMean[,i] = AMean
-  }
-  
-  # Calculate variance and standard deviation
-  # it is the sum of the difference between value and mean squared and multiplied by the weight
-  # I think I have to do it for each species from there
-  
-  statMS = list() # list with the stats of all species
-  for (i in SpIdx)
-  {
-    meanSp = TotMean[,i] # take the mean of the species
-    traitSp = sim@params@species_params$w_mat[sim@params@species_params$species == i] # take the traits of the ecotypes in the species
-    weightSp = abundanceNormal[,which(colnames(abundanceNormal) == i)] # take the proportion of each ecotypes
-    stat = matrix(cbind(rownames(abundanceT),meanSp,0,0), ncol = 4,nrow = length(meanSp), dimnames = list(NULL,c("time","mean","variance","sd"))) # initialise the matrix
-    for (j in 1:length(meanSp)) # for each time step
-    {
-      variance = sum(((traitSp-meanSp[j])^2)*weightSp[j,]) # calculate the variance
-      stat[j,3] = variance
-      stat[j,4] = sqrt(variance) # calculate the standard deviation
-    }
-    statMS[[i]] = as.data.frame(stat) # put in the list
-  }
-  
-  plotMatStore <- list()
-  
-  for (i in SpIdx)
-  {
-    # data for the trait values
-    # empty matrix of ecotype of species i by time
-    a = matrix(0, ncol = SumPar$timeMax[1], nrow = dim(TT[TT$Lineage == i,])[1], dimnames = list(as.numeric(TT$Ecotype[TT$Lineage == i]), c(1:SumPar$timeMax[1])))
-    # fill the matrix with ones when the ecotype exists
-    for (x in 1:nrow(a)) # I'm sure I can do an apply but don't know how
-    {
-      for (j in 1:ncol(a))
-      {
-        if (TT$Apparition[x] <= j & TT$Extinction[x] >= j) a[x,j] = 1
-      }}
-    # a is a matrix of 0 and 1 showing if the ecotype is present or not at time t
-    # calculate the mean trait value + standard deviation
-    # change the ones by the trait value of the ecotype
-    b = a * TT[TT$Lineage == i,]$Maturation_size
-    
-    # calculate mean trait value at each time step (normal mean)
-    # c = apply(a,2,sum) # this vector is the number of traits present at each time step
-    # d = apply(b,2,sum) # this vector is the sum of the traits value at each time step
-    # e = d/c # this is the mean trait value at each time step
-    # f = apply((sweep(b,2,e,"-")*a)^2,2,sum)/c # this is the variance at each time step
-    # g = sqrt(f) # this is the standard population deviation at each time step
-    # 
-    # stat = data.frame(e,g,e-g,e+g)
-    # colnames(stat) = list("mean","variance","low","up")
-    
-    #X = TT$Maturation_size[TT$Ecotype==i] # value around which to do the breaks
-    
-    stat = statMS[[i]] # take the stats of the right species
-    stat$mean <- as.numeric(substr(stat$mean,1,20)) # read the time and delete all conditions on it (like factor) # the 5 means handling number up to 10^5
-    stat$sd <- as.numeric(substr(stat$sd,1,20)) # otherwise I get errors from ggplot
-    stat$up = stat$mean + stat$sd
-    stat$low = stat$mean - stat$sd
-    
-    family = TT[TT$Lineage == i,3:5]
-    Fam = melt(family,"Maturation_size") 
-    name = paste("Species",i, sep = " ")
-    
-    if (i == 1) # top of the multi plot
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) +
-        geom_line(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(breaks = NULL, name = NULL) +
-        scale_y_continuous(name = name) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-        guides(color=guide_legend(override.aes=list(fill=NA)))+
-        ggtitle("Maturation size (g)")
-      
-    }
-    
-    else if (i == 9) # bottom of multiplots
-    
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) +
-        geom_line(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(name = "Time (yr)") +
-        scale_y_continuous(name = name) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        guides(color=guide_legend(override.aes=list(fill=NA)))
-      
-    }
-    
-    else {
-    p = ggplot() +
-      geom_point(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) +
-      geom_line(data = Fam, aes(x = value, y = Maturation_size, group = Maturation_size)) + 
-      geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-      geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-      geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-      scale_x_continuous(breaks = NULL, name = NULL) +
-      scale_y_continuous(name = name) +
-      scale_colour_discrete(labels = c("mean","standard deviation"))+
-      theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-      guides(color=guide_legend(override.aes=list(fill=NA)))
-    }
-    # print(p)
-    # setwd(paste(dir,subdir, sep = ""))
-    # mytitle = paste(name,".png", sep = "")
-    # dev.print(png, mytitle, width = res, height = 2/3* res) 
-    plotMatStore[[i]] = p
-  }
-  
-  # PPMR --------------------------
-  #3 Multiply by their trait value
-  abundanceT = sweep(abundanceNormal,2,sim@params@species_params$beta,"*")
-  
-  # Calculate mean at each time step
-  TotMean = matrix(0, nrow = dim(abundanceT)[1], ncol = length(unique(sim@params@species_params$species)), dimnames = list(rownames(abundanceT),unique(sim@params@species_params$species)))
-  names(dimnames(TotMean)) = list("time","species")
-  
-  for (i in SpIdx)
-  {
-    AMean = abundanceT[,which(colnames(abundanceT) == i)] # get the portion of the matrix I want (right species)
-    AMean = apply(AMean,1,sum) # it is already weighted so I'm just summing to get the mean
-    TotMean[,i] = AMean
-  }
-  
-  # Calculate variance and standard deviation
-  # it is the sum of the difference between value and mean squared and multiplied by the weight
-  # I think I have to do it for each species from there
-  
-  statPPMR = list() # list with the stats of all species
-  for (i in SpIdx)
-  {
-    meanSp = TotMean[,i] # take the mean of the species
-    traitSp = sim@params@species_params$beta[sim@params@species_params$species == i] # take the traits of the ecotypes in the species
-    weightSp = abundanceNormal[,which(colnames(abundanceNormal) == i)] # take the proportion of each ecotypes
-    stat = matrix(cbind(rownames(abundanceT),meanSp,0,0), ncol = 4,nrow = length(meanSp), dimnames = list(NULL,c("time","mean","variance","sd"))) # initialise the matrix
-    for (j in 1:length(meanSp)) # for each time step
-    {
-      variance = sum(((traitSp-meanSp[j])^2)*weightSp[j,]) # calculate the variance
-      stat[j,3] = variance
-      stat[j,4] = sqrt(variance) # calculate the standard deviation
-    }
-    statPPMR[[i]] = as.data.frame(stat) # put in the list
-  }
-  
-  plotPPMRStore <- list()
-  
-  for (i in SpIdx)
-  {
-    # empty matrix of ecotype of species i by time
-    a = matrix(0, ncol = SumPar$timeMax[1], nrow = dim(TT[TT$Lineage == i,])[1], dimnames = list(as.numeric(TT$Ecotype[TT$Lineage == i]), c(1:(SumPar$timeMax[1]))))
-    # fill the matrix with ones when the ecotype exists
-    for (x in 1:nrow(a)) # I'm sure I can do an apply but don't know how
-    {
-      for (j in 1:ncol(a))
-      {
-        if (TT$Apparition[x] <= j & TT$Extinction[x] >= j) a[x,j] = 1
-      }}
-    # a is a matrix of 0 and 1 showing if the ecotype is present or not at time t
-    # change the ones by the trait value of the ecotype
-    b = a * TT[TT$Lineage == i,]$PPMR
-    # calculate mean trait value at each time step
-    # c = apply(a,2,sum) # this vector is the number of traits present at each time step
-    # d = apply(b,2,sum) # this vector is the sum of the traits value at each time step
-    # e = d/c # this is the mean trait value at each time step
-    # f = apply((sweep(b,2,e,"-")*a)^2,2,sum)/c # this is the variance at each time step
-    # g = sqrt(f) # this is the standard population deviation at each time step
-    # 
-    # stat = data.frame(e,g,e-g,e+g)
-    # colnames(stat) = list("mean","variance","low","up")
-    
-    stat = statPPMR[[i]] # take the stats of the right species
-    stat$mean <- as.numeric(substr(stat$mean,1,10)) # read the time and delete all conditions on it (like factor) # the 5 means handling number up to 10^5
-    stat$sd <- as.numeric(substr(stat$sd,1,10)) # otherwise I get errors from ggplot
-    stat$up = stat$mean + stat$sd
-    stat$low = stat$mean - stat$sd
-    
-    family = TT[TT$Lineage == i,c(3,4,6)]
-    Fam = melt(family,"PPMR") 
-    name = paste("PPMR_SP",i, sep = "")
-   
-    if (i == 1) # top of the multi plot
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = PPMR, group = PPMR)) +
-        geom_line(data = Fam, aes(x = value, y = PPMR, group = PPMR)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(breaks = NULL, name = NULL) +
-        scale_y_continuous(limits = c(80,120), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-        guides(color=guide_legend(override.aes=list(fill=NA)))+
-        ggtitle("Preferred PPMR")
-      
-    }
-    
-    else if (i == 9) # bottom of multiplots
-      
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = PPMR, group = PPMR)) +
-        geom_line(data = Fam, aes(x = value, y = PPMR, group = PPMR)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(name = "Time (yr)") +
-        scale_y_continuous(limits = c(80,120), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        guides(color=guide_legend(override.aes=list(fill=NA)))
-      
-    }
-    
-    else {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = PPMR, group = PPMR)) +
-        geom_line(data = Fam, aes(x = value, y = PPMR, group = PPMR)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(breaks = NULL, name = NULL) +
-        scale_y_continuous(limits = c(80,120), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        guides(color=guide_legend(override.aes=list(fill=NA)))
-    }
-    # print(p)
-    # setwd(paste(dir,subdir, sep = ""))
-    # mytitle = paste(name,".png", sep = "")
-    # dev.print(png, mytitle, width = res , height = 2/3* res) 
-    
-    plotPPMRStore[[i]] <- p
-    
-  }
-  
-  # Diet breath -------------------------
-  #3 Multiply by their trait value
-  abundanceT = sweep(abundanceNormal,2,sim@params@species_params$sigma,"*")
-  
-  # Calculate mean at each time step
-  TotMean = matrix(0, nrow = dim(abundanceT)[1], ncol = length(unique(sim@params@species_params$species)), dimnames = list(rownames(abundanceT),unique(sim@params@species_params$species)))
-  names(dimnames(TotMean)) = list("time","species")
-  
-  for (i in SpIdx)
-  {
-    AMean = abundanceT[,which(colnames(abundanceT) == i)] # get the portion of the matrix I want (right species)
-    AMean = apply(AMean,1,sum) # it is already weighted so I'm just summing to get the mean
-    TotMean[,i] = AMean
-  }
-  
-  # Calculate variance and standard deviation
-  # it is the sum of the difference between value and mean squared and multiplied by the weight
-  # I think I have to do it for each species from there
-  
-  statDB = list() # list with the stats of all species
-  for (i in SpIdx)
-  {
-    meanSp = TotMean[,i] # take the mean of the species
-    traitSp = sim@params@species_params$sigma[sim@params@species_params$species == i] # take the traits of the ecotypes in the species
-    weightSp = abundanceNormal[,which(colnames(abundanceNormal) == i)] # take the proportion of each ecotypes
-    stat = matrix(cbind(rownames(abundanceT),meanSp,0,0), ncol = 4,nrow = length(meanSp), dimnames = list(NULL,c("time","mean","variance","sd"))) # initialise the matrix
-    for (j in 1:length(meanSp)) # for each time step
-    {
-      variance = sum(((traitSp-meanSp[j])^2)*weightSp[j,]) # calculate the variance
-      stat[j,3] = variance
-      stat[j,4] = sqrt(variance) # calculate the standard deviation
-    }
-    statDB[[i]] = as.data.frame(stat) # put in the list
-  }
-  
-  plotDBStore <- list()
-  
-  
-  for (i in SpIdx)
-  {
-    # empty matrix of ecotype of species i by time
-    a = matrix(0, ncol = SumPar$timeMax[1], nrow = dim(TT[TT$Lineage == i,])[1], dimnames = list(as.numeric(TT$Ecotype[TT$Lineage == i]), c(1:(SumPar$timeMax[1]))))
-    # fill the matrix with ones when the ecotype exists
-    for (x in 1:nrow(a)) # I'm sure I can do an apply but don't know how
-    {
-      for (j in 1:ncol(a))
-      {
-        if (TT$Apparition[x] <= j & TT$Extinction[x] >= j) a[x,j] = 1
-      }}
-    # a is a matrix of 0 and 1 showing if the ecotype is present or not at time t
-    # change the ones by the trait value of the ecotype
-    b = a * TT[TT$Lineage == i,]$Diet_breadth
-    # calculate mean trait value at each time step
-    # c = apply(a,2,sum) # this vector is the number of traits present at each time step
-    # d = apply(b,2,sum) # this vector is the sum of the traits value at each time step
-    # e = d/c # this is the mean trait value at each time step
-    # f = apply((sweep(b,2,e,"-")*a)^2,2,sum)/c # this is the variance at each time step
-    # g = sqrt(f) # this is the standard population deviation at each time step
-    # 
-    # stat = data.frame(e,g,e-g,e+g)
-    # colnames(stat) = list("mean","variance","low","up")
-    
-    stat = statDB[[i]] # take the stats of the right species
-    stat$mean <- as.numeric(substr(stat$mean,1,10)) # read the time and delete all conditions on it (like factor) # the 5 means handling number up to 10^5
-    stat$sd <- as.numeric(substr(stat$sd,1,10)) # otherwise I get errors from ggplot
-    stat$up = stat$mean + stat$sd
-    stat$low = stat$mean - stat$sd
-    
-    family = TT[TT$Lineage == i,c(3,4,7)]
-    Fam = melt(family,"Diet_breadth") 
-    #name = paste("DB_SP",i, sep = "")
-    
-    
-    if (i == 1) # top of the multi plot
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) +
-        geom_line(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red"), method = "auto") +
-       geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue"), method = "auto") +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue"), method = "auto") +
-        scale_x_continuous(breaks = NULL, name = NULL) +
-        scale_y_continuous(limits = c(0.75, 1.4), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-        guides(color=guide_legend(override.aes=list(fill=NA)))+
-        ggtitle("Diet Breadth")
-      
-    }
-    
-    else if (i == 9) # bottom of multiplots
-      
-    {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) +
-        geom_line(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(name = "Time (yr)") +
-        scale_y_continuous(limits = c(0.75, 1.4), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        guides(color=guide_legend(override.aes=list(fill=NA)))
-      
-    }
-    
-    else {
-      p = ggplot() +
-        geom_point(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) +
-        geom_line(data = Fam, aes(x = value, y = Diet_breadth, group = Diet_breadth)) + 
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = mean, color =" red")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = low, color ="blue")) +
-        geom_smooth(data = stat, aes(x = as.numeric(row.names(stat)), y = up, color ="blue")) +
-        scale_x_continuous(breaks = NULL, name = NULL) +
-        scale_y_continuous(limits = c(0.75, 1.4), name = NULL) +
-        scale_colour_discrete(labels = c("mean","standard deviation"))+
-        theme(legend.title=element_blank(),panel.background = element_blank(), legend.position="none", legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
-        guides(color=guide_legend(override.aes=list(fill=NA)))
-    }
-    
-    
-    # print(p)
-    # setwd(paste(dir,subdir, sep = ""))
-    # mytitle = paste(name,".png", sep = "")
-    # dev.print(png, mytitle, width = res, height = 2/3* res)
-    
-    plotDBStore[[i]] <- p
-    
-  }
-  
-  # multi plots ----------------------------------
-  
-  multiplot(plotMatStore[[1]], plotMatStore[[3]],plotMatStore[[4]],plotMatStore[[5]],plotMatStore[[9]], 
-            plotPPMRStore[[1]], plotPPMRStore[[3]],plotPPMRStore[[4]], plotPPMRStore[[5]],plotPPMRStore[[9]],
-            plotDBStore[[1]],plotDBStore[[3]],plotDBStore[[4]], plotDBStore[[5]],plotDBStore[[9]], 
-            cols=3)
-  
-res = 800
-  mytitle = paste("trait",".png", sep = "")
-  dev.print(png, mytitle, width = res, height = 2/3* res)
-  
   # relationship between traits ------------------
   
   # beta/sigma ratio
@@ -2209,7 +1301,7 @@ res = 800
     geom_hline(yintercept = 1)
   
   
-  #fisheries run---------------------
+  #fisheries scenarios---------------------
   source("TBM1.r") # the model from mizer (more like a set up)
   source("model.r") # my model 
   ##   scenario 1 biggest species fished, selectivity above maturation size
