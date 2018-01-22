@@ -109,8 +109,8 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
     tmpA <- w_inf[1]
     tmpB <- (log10(w_inf[length(w_inf)]) - log10(w_inf[1])) / (no_sp - 1) # Difference between logged w_infs, fine
     
-    if (length(no_sp) == 1 ) dw_winf <-  tmpA *10
-    #if (no_sp == 1 ) dw_winf <-  tmpA *10
+    #if (length(no_sp) == 1 ) dw_winf <-  tmpA *10
+    if (no_sp == 1 ) dw_winf <-  tmpA *10
     
     else  dw_winf <- tmpB * tmpA *10^(tmpB*((1:no_sp)-1)) # ?
     
@@ -278,9 +278,15 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
   
   # Matrices for solver
   # Dynamics of background spectrum uses a semi-chemostat model (de Roos - ask Ken)
-  A <- matrix(0,nrow=no_sp,ncol=no_w)
-  B <- matrix(0,nrow=no_sp,ncol=no_w)
-  S <- matrix(0,nrow=no_sp,ncol=no_w)
+  # A <- matrix(0,nrow=no_sp,ncol=no_w)
+  # B <- matrix(0,nrow=no_sp,ncol=no_w)
+  # S <- matrix(0,nrow=no_sp,ncol=no_w)
+  
+  # new version
+  A = matrix(data=0, nrow=no_sp, ncol=no_w-1)
+  B = matrix(data=0, nrow=no_sp, ncol=no_w)
+  C = rep(0,no_w-1)
+  S = matrix(data=0, nrow=no_sp, ncol=no_w)
   
   if(dim(sim@n)[2] == 1) dimnames(sim@n)$sp = 1
   else   dimnames(sim@n)$sp = rownames(initial_n) # the object created by mizer doesnt keep in memomry my mutant names, so Im putting them here
@@ -359,7 +365,6 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     # print(m2)
     m2_background <- getM2Background(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate)
     z <- getZ(sim@params, n=n, n_pp=n_pp, effort=effort_dt[i_time,], m2=m2) #total mortality 
-    
     e <- getEReproAndGrowth(sim@params, n=n, n_pp=n_pp, feeding_level=feeding_level)
     e_spawning <- getESpawning(sim@params, n=n, n_pp=n_pp, e=e)
     e_growth <- getEGrowth(sim@params, n=n, n_pp=n_pp, e_spawning=e_spawning, e=e)
@@ -367,42 +372,70 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     rdd <- getRDD(sim@params, n=n, n_pp=n_pp, rdi=rdi, sex_ratio=sex_ratio)
     
     # Iterate species one time step forward:
-    A[,idx] <- sweep(-e_growth[,idx-1,drop=FALSE]*dt, 2, sim@params@dw[idx], "/") 
-    # idx start at 2, the -1 makes it include the first column # the "-" makes all the value negative and *dt reduce accordingly to one time step
-    # the operation takes the first column of e_growth and divide it by the first column of sim@params@dw (which is in reality the secon one because of the idx-1)
-    #the result is a negative value placed in the second column of A (dw is small so dividing by it makes a big number)
-    
-    B[,idx] <- 1 + sweep(e_growth[,idx,drop=FALSE]*dt,2,sim@params@dw[idx],"/") + z[,idx,drop=FALSE]*dt
-    # in this one, with start with the second column of e_growth, divided by the same of sim@params@dw
-    # why m2 pos? # I think it's the sum of everything that leaves w, hence the growth that goes in the next and predation
-    
-    S[,idx] <- n[,idx,drop=FALSE]
-    # Boundary condition upstream end (recruitment), add values to the first column that stayed empty
-    
-    B[w_min_idx_array_ref] <- 1+e_growth[w_min_idx_array_ref]*dt/sim@params@dw[sim@params@species_params$w_min_idx]+z[w_min_idx_array_ref]*dt
-    
-    # Update first size group of n
-    #actual value + density dependent reproduction by dt / dw (bins size) / first column of B
-    if (RMAX == FALSE)  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdi*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref] #changed rdd to rdi
-    else  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdd*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref]
-    # print("rmax")
-    # print(sim@params@species_params$r_max)
+    # A[,idx] <- sweep(-e_growth[,idx-1,drop=FALSE]*dt, 2, sim@params@dw[idx], "/") 
+    # # idx start at 2, the -1 makes it include the first column # the "-" makes all the value negative and *dt reduce accordingly to one time step
+    # # the operation takes the first column of e_growth and divide it by the first column of sim@params@dw (which is in reality the secon one because of the idx-1)
+    # #the result is a negative value placed in the second column of A (dw is small so dividing by it makes a big number)
     # 
-    # print("rdi")
-    # print(rdi)
-    # print("rdd")
-    # print(rdd)
+    # B[,idx] <- 1 + sweep(e_growth[,idx,drop=FALSE]*dt,2,sim@params@dw[idx],"/") + z[,idx,drop=FALSE]*dt
+    # # in this one, with start with the second column of e_growth, divided by the same of sim@params@dw
+    # # why m2 pos? # I think it's the sum of everything that leaves w, hence the growth that goes in the next and predation
     # 
-    # print("dt machin")
-    # print(dt/sim@params@dw[sim@params@species_params$w_min_idx])
+    # S[,idx] <- n[,idx,drop=FALSE]
+    # # Boundary condition upstream end (recruitment), add values to the first column that stayed empty
     # 
-    # print("B")
-    # print(B[w_min_idx_array_ref])
-    # Invert matrix
+    # B[w_min_idx_array_ref] <- 1+e_growth[w_min_idx_array_ref]*dt/sim@params@dw[sim@params@species_params$w_min_idx]+z[w_min_idx_array_ref]*dt
+    # 
+    # # Update first size group of n
+    # #actual value + density dependent reproduction by dt / dw (bins size) / first column of B
+    # if (RMAX == FALSE)  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdi*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref] #changed rdd to rdi
+    # else  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdd*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref]
+    # # print("rmax")
+    # # print(sim@params@species_params$r_max)
+    # # 
+    # # print("rdi")
+    # # print(rdi)
+    # # print("rdd")
+    # # print(rdd)
+    # # 
+    # # print("dt machin")
+    # # print(dt/sim@params@dw[sim@params@species_params$w_min_idx])
+    # # 
+    # # print("B")
+    # # print(B[w_min_idx_array_ref])
+    # # Invert matrix
+    # for (i in 1:no_sp)
+    #   for (j in (sim@params@species_params$w_min_idx[i]+1):no_w) # the 2 loops sweep all the matrix n, change the whole n array at one time step, start at 2
+    #     n[i,j] <- (S[i,j] - A[i,j]*n[i,j-1]) / B[i,j]
     
-    for (i in 1:no_sp)
-      for (j in (sim@params@species_params$w_min_idx[i]+1):no_w) # the 2 loops sweep all the matrix n, change the whole n array at one time step, start at 2
-        n[i,j] <- (S[i,j] - A[i,j]*n[i,j-1]) / B[i,j]
+    # new version
+    #
+    # Set up matrix:
+    #
+    for (iSpecies in 1:no_sp) {
+      A[iSpecies, ] <- -e_growth[iSpecies, 1:(no_w-1)]*dt/sim@params@dw[2:no_w]
+      B[iSpecies, ] <- 1 + dt*(e_growth[iSpecies,]/sim@params@dw + z[iSpecies,])
+      S[iSpecies, ] <- n[iSpecies, ]
+      
+      if (RMAX) S[iSpecies, 1] <- n[iSpecies, 1] + rdd[iSpecies]*dt/sim@params@dw[1]
+      else S[iSpecies, 1] <- n[iSpecies, 1] + rdi[iSpecies]*dt/sim@params@dw[1]
+    }
+    
+    #
+    # Invert matrix:
+    #
+    for (iSpecies in 1:no_sp) {
+      n[iSpecies,] <- Solve.tridiag(A[iSpecies,],B[iSpecies,],C,S[iSpecies,])
+    }
+    
+
+    
+    
+    
+    
+    
+    
+
     
     # extinction part
     if (extinct == TRUE)
