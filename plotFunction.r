@@ -1088,7 +1088,12 @@ plotTotMort <- function(directory, predMort = NULL, time_range = NULL, print_it 
 
 plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time)),print_it = TRUE, returnData = F, comments = T){
   
-  z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = object@effort[whatTime])
+  # effort can be in 2 forms
+  
+  if(is.matrix(object@effort)) effort = object@effort[whatTime,]
+  else effort = object@effort[whatTime]
+  
+  z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = effort)
   dimnames(z)$prey = object@params@species_params$species
   #SpIdx = sort(unique(object@params@species_params$species)) # get the species names
 

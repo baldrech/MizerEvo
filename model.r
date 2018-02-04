@@ -9,7 +9,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     max_w = max_w_inf * 1.1, #max size bin of both spectrum
                     min_w_pp = 1e-10, #min size bin of background size spectrum
                     no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
-                    w_pp_cutoff = 0.5, # cut of size of the background spectrum
+                    w_pp_cutoff = 1e3, # cut of size of the background spectrum
                     k0 = 50, # recruitment adjustment parameter
                     n = 0.75, # exponent of maximum intake (scaling of intake)
                     p = 0.75, # exponent of standard metabolism
@@ -19,11 +19,11 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     kappa = 0.05, # ressource spectrum carrying capacity
                     lambda = 2+q-n, # exponent of the background spectrum.
                     alpha = 0.6, # assimilation efficiency
-                    ks = 2, # factor for standard metabolism
+                    ks = 10, # factor for standard metabolism
                     z0pre = 0.84, # background mortality factor
-                    h = 95, # factor of maximum intake
+                    h = 85, # factor of maximum intake
                     beta = 100, # preferred predator-prey weight ratio
-                    sigma = 1.3, # width of selection function
+                    sigma = 1, # width of selection function
                     f0 = 0.6, # average feeding level of the community/feeding level of small individuals feeding on background
                     knife_edge_size = 1000, #knife edge position
                     gear_names = "knife_edge_gear",
@@ -39,7 +39,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     r_mult = 1e0, #rmax multiplier to try things
                     cannibalism = 1, # to tweak cannibalism in the interaction matrix
                     erepro = 0.1, # reproduction efficiency
-                    hartvig = F, # old set of parameters
+                    ken = F, # new set of parameters
                     no_run = 1, # number of sim in a row to do
                     effort = 0,
                     initCondition = NULL, # if I want to input previous mizer object as initial condition
@@ -52,14 +52,19 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
                     ...){
-  if (hartvig)
+
+  
+  if(ken)
   {
-    h = 85
-    w_pp_cutoff = 1e3
-    #kappa = 5e-3
-    ks = 10
-    sigma = 1
+    sigma = 1.3
+    h = 20
+    ks = 2.4
+    z0pre = 2
+    w_pp_cutoff = 1
+    #kappa = 1e12
   }
+  
+  
   if (is.null(initCondition))
   {
     firstRun = 1
