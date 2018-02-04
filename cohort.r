@@ -1,21 +1,25 @@
 # cohort plot -------------
 # I want the spawn through life -> last value of total cohortR
 
-sim <- get(load("eta4and5/9sp/normal/run10/run.Rdata"))
-sim <- get(load("eta4and5/3sp/normal/run5/run.Rdata"))
+sim <- get(load("Test/init/run2/run.Rdata"))
+
 dt=0.1
 effort=0
 sex_ratio = 0.5
 
-cohortSpan <- seq(1,250,1)
+cohortSpan <- seq(0,4,1)
+firstCohort = 200 # t_start + max(cohortSpan) + T + 1 < dim(sim@n)[1]
 no_sp = dim(sim@params@species_params)[1]
-PhenIdx <- which(sim@params@species_params$species == 6)[1] # select who to track
+PhenIdx <- which(sim@params@species_params$species == 2)#[1] # select who to track
+PhenIdx <- seq(1,no_sp)
 no_Phen = length(PhenIdx)
 fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenIdx,cohortSpan)) #collect the total spawn per time (start of cohort) per species
 names(dimnames(fitness)) <- list("species","cohort")
+
+
 for (cohortGen in cohortSpan)
 {
-  t_start = cohortGen
+  #t_start = cohortGen
   # get rid of the non-existing species at that time
   # SpIdx <- which(sim@n[t_start,PhenIdx,1]>0)
   # a <- as.numeric(names(SpIdx))
@@ -23,9 +27,13 @@ for (cohortGen in cohortSpan)
   # sim@n <- simulation@n[,SpIdx,]
   # no_sp = dim(sim@n)[2]
   
-  cat(sprintf("cohort is %g\n",cohortGen))
-  T = 5/dt; # number of time steps you want to follow cohort for
+  #temp
+
+  
+  T = 15/dt; # number of time steps you want to follow cohort for
   #t_start = laststep - T; # setting the start time for tracking the cohort
+  t_start = firstCohort + cohortGen
+  cat(sprintf("cohort is %g\n",t_start))
   
   cohortW = array(0, c(no_sp, T+1)); # row vector for following cohort weight
   cohortS = array(0, c(no_sp, T+1)); # vector for cohort survival
@@ -36,32 +44,68 @@ for (cohortGen in cohortSpan)
   cohortW[,1] = sim@params@w[1]; # log weight initially (newborn)
   cohortS[,1] = sim@n[t_start,,1]; # initial population in spectrum
   
-  
-  
-  for (q in PhenIdx){ 
-    cat(sprintf("q is %g\n",q))
+  # need to check which growth and mortality values I get when I look at all the species, even the ones that have not appear yet
+  # yo <- set_TBM(no_sp = 6, eta = 0.5, min_w_inf = 10, 
+  #               max_w_inf = 1e4, RMAX = T, cannibalism = 0.5, 
+  #               erepro = 1, 
+  #               h = 85, w_pp_cutoff = 1e3, ks = 10, sigma = 1, f0 = 0.5, 
+  #               initTime = 1, effort = 0, normalFeeding = F)
+
+  # for (q in PhenIdx){ # delete this loop and do all the phenotypes at once
+  #   cat(sprintf("q is %g\n",q))
+  #   for (t in seq(1,T)){ # within time period you're interested in
+  #     #cat(sprintf("t is %g\n",t))
+  #     
+  #     cohortWprev = max(which(cohortW[q,t] - sim@params@w >= 0)) # weight bin of cohort from last time step 
+  #     #print(cohortWprev)
+  #     growth = getEGrowth(sim@params,n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,])
+  #     cohortW[q,t+1] = cohortW[q,t]+dt*growth[q,cohortWprev] # using growth rate in that bin to update to cohortW(t-t_start+1)
+  #     z = getZ(object = sim@params, n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,], effort = effort)
+  #     cohortS[q,t+1] = cohortS[q,t]*exp(-dt*z[q,cohortWprev]) # updating amount surviving using death rate
+  #     
+  #     # need to prepare n for no NAN
+  #     n = sim@n[t_start+t-1,,]*cohortS[,t]/cohortS[,1]
+  #     n[!is.finite(n)] <- 0#1e-30
+  #     
+  #     e_spawning <- getESpawning(object = sim@params, n = n,n_pp = sim@n_pp[t_start+t-1,])
+  #     e_spawning_pop <- apply((e_spawning*n),1,"*",sim@params@dw)
+  #     rdi <- sex_ratio*(e_spawning_pop * sim@params@species_params$erepro)/sim@params@w[sim@params@species_params$w_min_idx] # need to get RDI that way so it is not summed up
+  #     cohortR[q,t+1] = cohortR[q,t] + dt*rdi[cohortWprev,q]  #[q,cohortWprev] #bug here
+  #     #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
+  #   }
+  #   fitness[which(dimnames(fitness)[[1]] == q),which(cohortGen==cohortSpan)] = cohortR[q,T]
+  # }
+
+
     for (t in seq(1,T)){ # within time period you're interested in
-      #cat(sprintf("t is %g\n",t))
-      
-      cohortWprev = max(which(cohortW[q,t] - sim@params@w >= 0)) # weight bin of cohort from last time step 
-      #print(cohortWprev)
+
+      # vector of the previous size bin for every phenotypes
+      cohortWprev = unlist(lapply( lapply(cohortW[PhenIdx,t], FUN = function(x) x-sim@params@w), FUN = function(x) max(which(x>= 0))))
+      # growth matrix
       growth = getEGrowth(sim@params,n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,])
-      cohortW[q,t+1] = cohortW[q,t]+dt*growth[q,cohortWprev] # using growth rate in that bin to update to cohortW(t-t_start+1)
+      # update the new size bin with the growth
+      cohortW[PhenIdx,t+1] = cohortW[PhenIdx,t]+dt*diag(growth[PhenIdx,cohortWprev])
+      # mortality matrix
       z = getZ(object = sim@params, n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,], effort = effort)
-      cohortS[q,t+1] = cohortS[q,t]*exp(-dt*z[q,cohortWprev]) # updating amount surviving using death rate
-      
-      # need to prepare n for no NAN
+      # update the amount surviving the time-step
+      cohortS[PhenIdx,t+1] = cohortS[PhenIdx,t]*exp(-dt*diag(z[PhenIdx,cohortWprev]))
+      # need to prepare n for no NAN, I just want the n of the specific cohort so I extract the right fraction
       n = sim@n[t_start+t-1,,]*cohortS[,t]/cohortS[,1]
-      n[!is.finite(n)] <- 1e-30
-      
+      n[!is.finite(n)] <- 0
+      # get the rdi manually to have it spread over size bins
       e_spawning <- getESpawning(object = sim@params, n = n,n_pp = sim@n_pp[t_start+t-1,])
       e_spawning_pop <- apply((e_spawning*n),1,"*",sim@params@dw)
-      rdi <- sex_ratio*(e_spawning_pop * sim@params@species_params$erepro)/sim@params@w[sim@params@species_params$w_min_idx] # need to get RDI that way so it is not summed up
-      cohortR[q,t+1] = cohortR[q,t] + dt*rdi[cohortWprev,q]  #[q,cohortWprev]
+      rdi <- sex_ratio*(e_spawning_pop * sim@params@species_params$erepro)/sim@params@w[sim@params@species_params$w_min_idx]
+      # update the total spawn for fitness
+      cohortR[PhenIdx,t+1] = cohortR[PhenIdx,t] + dt*diag(rdi[cohortWprev,PhenIdx])
       #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
     }
-    fitness[which(dimnames(fitness)[[1]] == q),which(cohortGen==cohortSpan)] = cohortR[q,T]
-  }
+      fitness[which(dimnames(fitness)[[1]] == PhenIdx),which(cohortGen==cohortSpan)] = cohortR[PhenIdx,T]
+  
+
+  
+  
+  
 }
 
 # need to take the average fitness
