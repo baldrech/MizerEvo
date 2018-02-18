@@ -51,8 +51,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     save_it = F, # do you want to save?
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
+                    initPool = 10,
                     ...){
-
+  
   
   if(ken)
   {
@@ -104,7 +105,6 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                        rm = rm,
                        normalFeeding = normalFeeding) 
     
-    
     # Initialisation ---------------------
     # Mutant option
     M3List <- list() # So I'm creating this list to store parameters from user input and only have one thing to pass between functions
@@ -118,12 +118,92 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     # Kick start the abundance
     if (print_it) cat(sprintf("Initialisation of the simulation, please wait.\n"))
     initBio <- project(param, t_max = initTime, extinct = FALSE, OptMutant="yo", RMAX = RMAX) # init abundance
+    #initBio <- project(param, t_max = 1, extinct = FALSE, OptMutant="yo", RMAX = T) # init abundance
     n_init <- initBio@n[dim(initBio@n)[1],,]
     n_pp_init <- initBio@n_pp[dim(initBio@n_pp)[1],]
     if (print_it) cat(sprintf("Initialisation completed, starting simulation.\n"))
     nameList = initBio@params@species_params$ecotype
+    
+    # Generate a base of phenotypes around each species
+    #steps
+    #1 take the dataframe and add ~10 phen per species
+    
+    for (iSpecies in sort(unique(param@species_params$species)))
+    {
+      # Generate phenotypes pool
+      for (iPhenotype in seq(1,initPool))
+      {
+        mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
+        while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+        
+        switch(Traits,
+               size = {o
+                 # Trait = asymptotic size
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                 mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
+                 mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
+                 mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
+               },
+               beta = {
+                 # Trait = PPMR
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                 mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+               },
+               sigma = {
+                 # Trait = fedding kernel
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                 mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+               },
+               eta = {
+                 # Trait = eta
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
+                 mutant$eta <- mutant$eta + rnorm(1, 0, sd) # change a bit eta
+                 mutant$w_mat <- mutant$w_inf * mutant$eta # update
+               },
+               all = {
+                 # Trait = asymptotic size
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                 mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
+                 mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
+                 mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
+                 # Traits = predation
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                 mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                 mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                 # calculate the new gamma
+                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+               },
+               {
+                 print("Trait specified is not in the list")
+               })
+        
+        # integrate the mutant in the df 
+        rownames(mutant) = mutant$ecotype
+        param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
+        
+        #mutant abundance
+        n_mutant <- rep(0,no_w)
+        n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
+        n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
+        n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
+        rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
+      }
+      
+      
+    }
+    
+    #need to update some suff now that there is one more sp
+    no_sp = dim(param@species_params)[1]
+    
+    # Recreate the "param" object needed for the projection
+    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
   }
-  
   else 
   {
     Nparam = initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct to start the sim
@@ -186,8 +266,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           
           # if (oneSpMode) #special case if only one species as I reach easly the limit of 16 digits names
           # {do something here} else {
-            mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
-            while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+          mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
+          while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
           # } 
           
           # TRAITS
