@@ -275,8 +275,8 @@ plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FAL
       ggtitle("Community biomass")
   }
   
-  if(print_it) print(p)
-  if (returnData) return(BiomSp) else return(p)
+  #if(print_it) print(p)
+  if (returnData) return(BiomSp) else if(print_it) return(p)
 }
 
 plotDynamicsMulti <- function(folder){
@@ -880,9 +880,7 @@ PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
       guides(color=guide_legend(override.aes=list(fill=NA)))+
       ggtitle("Variation of phenotype's number throughout the simulation")
     
-    if (print_it)  print(p)
-    
-    if (returnData) return(list(stat,dfRibbon)) else return(p)
+    if (returnData) return(list(stat,dfRibbon)) else if (print_it)return(p)
   }
   
   
@@ -939,9 +937,7 @@ PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
     guides(color=guide_legend(override.aes=list(fill=NA)))+
     ggtitle("Variation of phenotype's number throughout the simulation")
   
-  if (print_it)  print(p)
-  
-  if (returnData) return(list(stat,dfRibbon)) else return(p)
+  if (returnData) return(list(stat,dfRibbon)) else if (print_it) return(p)
 }
 
 # my plot of the dead (x 3 because that's why)
@@ -1189,9 +1185,9 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if(print_it) print(p)
+  #if(print_it) print(p)
   
-  if (returnData) return(plot_dat) else return(p)
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 # growth curve
