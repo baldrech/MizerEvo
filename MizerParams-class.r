@@ -412,7 +412,7 @@ setMethod('MizerParams', signature(object='numeric', interaction='missing'),
 #' @rdname MizerParams-methods
 #' @aliases MizerParams,data.frame,matrix-method
 setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
-          function(object, interaction,  n = 2/3, p = 0.7, q = 0.8, r_pp = 10, kappa = 1e11, lambda = (2+q-n), w_pp_cutoff = 10, max_w = max(object$w_inf)*1.1, f0 = 0.6, z0pre = 0.6, z0exp = n-1, normalFeeding = T, ...){
+          function(object, interaction,  n = 2/3, p = 0.7, q = 0.8, r_pp = 10, kappa = 1e11, lambda = (2+q-n), w_pp_cutoff = 10, max_w = max(object$w_inf)*1.1, f0 = 0.6, z0pre = 0.6, z0exp = n-1, normalFeeding = F, ...){
             
             # Set default values for column values if missing
             # If no gear_name column in object, then named after species

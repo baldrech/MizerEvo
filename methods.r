@@ -350,13 +350,15 @@ setMethod('getCFeedingLevel', signature(object='MizerParams', n = 'matrix', n_pp
             if (!all(dim(phi_prey) == c(nrow(object@species_params),length(object@w)))){
               stop("phi_prey argument must have dimensions: no. species (",nrow(object@species_params),") x no. size bins (",length(object@w),")")
             }
-            # encountered food = available food * search volume
-            #encount <- object@search_vol * phi_prey - object@std_metab
-            encount <-  object@std_metab
-            # calculate feeding level
-            f <- encount/(encount + object@intake_max)
+            f = sweep(object@std_metab,2,(object@intake_max * object@species_params$alpha)[1,],"/")
             return(f)
           })
+
+
+
+
+
+
 #' @rdname getCFeedingLevel-methods
 #' @aliases getFeedingLevel,MizerParams,matrix,numeric,missing-method
 setMethod('getCFeedingLevel', signature(object='MizerParams', n = 'matrix', n_pp='numeric', phi_prey='missing'),
@@ -863,6 +865,34 @@ setMethod('getEReproAndGrowth', signature(object='MizerParams', n = 'matrix', n_
           function(object, n, n_pp){
             feeding_level <- getFeedingLevel(object, n=n, n_pp=n_pp)
             e <- getEReproAndGrowth(object, n=n, n_pp=n_pp, feeding_level=feeding_level)
+            return(e)
+          })
+
+
+#my own energy function, without the metabolism
+
+setGeneric('getE', function(object, n, n_pp, feeding_level, ...)
+  standardGeneric('getE'))
+
+#' @rdname getE
+#' @aliases getE,MizerParams,matrix,numeric,matrix-method
+setMethod('getE', signature(object='MizerParams', n = 'matrix', n_pp = 'numeric', feeding_level='matrix'),
+          function(object, n, n_pp, feeding_level){
+            if (!all(dim(feeding_level) == c(nrow(object@species_params),length(object@w)))){
+              stop("feeding_level argument must have dimensions: no. species (",nrow(object@species_params),") x no. size bins (",length(object@w),")")
+            }
+            # assimilated intake
+            e <- sweep(feeding_level * object@intake_max,1,object@species_params$alpha,"*")
+            e[e<0] <- 0 # Do not allow negative growth
+            return(e)
+          })
+
+#' @rdname getE
+#' @aliases getE,MizerParams,matrix,numeric,missing-method
+setMethod('getE', signature(object='MizerParams', n = 'matrix', n_pp = 'numeric', feeding_level='missing'),
+          function(object, n, n_pp){
+            feeding_level <- getFeedingLevel(object, n=n, n_pp=n_pp)
+            e <- getE(object, n=n, n_pp=n_pp, feeding_level=feeding_level)
             return(e)
           })
 

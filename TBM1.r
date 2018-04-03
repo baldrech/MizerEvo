@@ -358,7 +358,7 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     feeding_level <- getFeedingLevel(sim@params, n=n, n_pp=n_pp, phi_prey=phi_prey)
     pred_rate <- getPredRate(sim@params, n=n, n_pp=n_pp, feeding_level=feeding_level)
     
-    if (!is.null(predMort)) m2 = predMort else m2 <- getM2(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate)
+    if (!is.null(predMort)) m2 = predMort else m2 <- getM2(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate) # for cst mortality rate (I think)
     # print(class(m2))
     # print(dim(m2))
     # print(dimnames(m2))
