@@ -192,11 +192,11 @@ plotSummary <- function(x, ...){
   print(p2+ theme(legend.position="right", legend.key.size=unit(0.1,"cm")), vp = vplayout(3,1:2))
 }
 
-# My plots --------------------------------------------------------------------------------------------------------
+# physio plots --------------------------------------------------------------------------------------------------------
 
 # plot biomass
 
-plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FALSE, print_it = T, returnData = F){
+plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FALSE, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png"){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   biomass <- getBiomass(object) # n * w * dw and sum by species
@@ -275,8 +275,9 @@ plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FAL
       ggtitle("Community biomass")
   }
   
-  if(print_it) print(p)
-  if (returnData) return(BiomSp) else return(p)
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(BiomSp) else if(print_it) return(p)
 }
 
 plotDynamicsMulti <- function(folder){
@@ -519,7 +520,8 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
 
 
 # plot size spectrum
-plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), min_w =min(object@params@w)/100, biomass = TRUE, print_it = TRUE, species = TRUE, ...){
+plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), min_w =min(object@params@w)/100, 
+                   biomass = TRUE, print_it = TRUE, species = TRUE, save_it = FALSE,nameSave = "SizeSpectrum.png", returnData = FALSE, ...){
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   min_w = 0.001
@@ -591,9 +593,9 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
   }
   
   
-  if (print_it)
-    print(p)
-  return(p)
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(plot_datSp) else if(print_it) return(p)
 }
 
 # fisheries mortality
@@ -670,7 +672,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 
 # plot feeding / satiation level
-plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = F, start = 1000, every = 1000, print_it = T, returnData = F, ...){
+plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = F, start = 1000, every = 1000, print_it = T, returnData = F, save_it =F, ...){
   
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
@@ -730,13 +732,18 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
       
       ggtitle("Feeding level through time")
     
-    if(print_it) print(p)
-    return(p)
+    if(save_it) ggsave(plot = p, filename = nameSave)
+    
+    if (returnData) return(plot_dat) else if(print_it) return(p)
     
   }
   
-  feed_time <- getFeedingLevel(object=object, time_range=time_range, drop=FALSE, ...) # get the feeding time
+  feed_time <- getFeedingLevel(object=object, time_range=time_range, drop=FALSE) #, ...) # get the feeding time
   feed <- apply(feed_time, c(2,3), mean) # average on the time frame
+  
+  Cfeed_time <- getCFeedingLevel(object=object, time_range=time_range, drop=FALSE)#, ...) # get the critical feeding level
+  Critfeed <- apply(Cfeed_time, c(2,3), mean) # average on the time frame
+  Critfeed <- Critfeed[1,] # all rows the same
   
   if (species) # if I want to display species instead of ecotypes
   {
@@ -756,25 +763,33 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
     feed = feed_sp
   }
   
-  plot_dat <- data.frame(value = c(feed), Species = dimnames(feed)[[1]], w = rep(object@params@w, each=length(dimnames(feed)[[1]])))
+  a <- c(object@params@species_params$w_inf[1:9]) # to get vline of different col, need to create a data frame
+  vlines <- data.frame(xint = a,grp = c(1:9))
+  
+  plot_dat <- data.frame(value = c(feed), species = dimnames(feed)[[1]], size = rep(object@params@w, each=length(dimnames(feed)[[1]])))
   
   name = paste("Feeding level at time",time_range,sep=" ")
   
-  
   p <- ggplot(plot_dat) + 
-    geom_line(aes(x=w, y = value, colour = Species)) + 
-    scale_x_continuous(name = "Size", trans="log10") + 
+    geom_line(aes(x=size, y = value, colour = as.factor(species))) + 
+    geom_hline(yintercept = Critfeed[1], linetype = "dashed", color = "red") +
+    geom_vline(data = vlines,aes(xintercept = xint,colour = as.factor(grp)), linetype = "dashed") + 
+    scale_x_log10(name = "Size", breaks = c(1 %o% 10^(-3:5)))  + 
     scale_y_continuous(name = "Feeding Level", lim=c(0,1))+
+    scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
+    theme(panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          legend.key = element_rect(fill = "white"))+
     ggtitle(name)
+
+  if(save_it) ggsave(plot = p, filename = nameSave)
   
-  if(print_it) print(p)
-  
-  if (returnData) return(plot_dat) else return(p)
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 # plot of the number of ecotype per time step
 
-PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
+PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1, save_it = F, nameSave = "NoSp.png"){
   
   if (is.list(object)) # this means that it gets a list of sim and needs to do the average
   {
@@ -880,9 +895,9 @@ PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
       guides(color=guide_legend(override.aes=list(fill=NA)))+
       ggtitle("Variation of phenotype's number throughout the simulation")
     
-    if (print_it)  print(p)
+    if(save_it) ggsave(plot = p, filename = nameSave)
     
-    if (returnData) return(list(stat,dfRibbon)) else return(p)
+    if (returnData) return(list(stat,dfRibbon)) else if (print_it)return(p)
   }
   
   
@@ -939,9 +954,9 @@ PlotNoSp <- function(object, print_it = T, returnData = F, init = T, dt = 0.1){
     guides(color=guide_legend(override.aes=list(fill=NA)))+
     ggtitle("Variation of phenotype's number throughout the simulation")
   
-  if (print_it)  print(p)
+  if(save_it) ggsave(plot = p, filename = nameSave)
   
-  if (returnData) return(list(stat,dfRibbon)) else return(p)
+  if (returnData) return(list(stat,dfRibbon)) else if (print_it) return(p)
 }
 
 # my plot of the dead (x 3 because that's why)
@@ -1096,12 +1111,12 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
   z <- getZ(object = object@params, n = object@n[whatTime,,], n_pp = object@n_pp[whatTime,], effort = effort)
   dimnames(z)$prey = object@params@species_params$species
   #SpIdx = sort(unique(object@params@species_params$species)) # get the species names
-
+  
   # need to get rid of the extinct species at that time in SpIdx
   a <- apply(object@n[whatTime,,],1,sum)
   
   names(a) <- sapply(names(a), function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
-
+  
   d <- rowsum(a, group = names(a))
   
   if (sum(d[,1] == 0)) 
@@ -1112,7 +1127,7 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
     
     
   } else {SpIdx <- as.numeric(rownames(d))}
-
+  
   z_sp = matrix(data = NA, ncol = dim(z)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(z)$w_prey)) # prepare the new object
   names(dimnames(z_sp))=list("prey","w_prey")
   
@@ -1144,7 +1159,7 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
 
 # plot growth at time t
 
-plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F,...){
+plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F, nameSave = "Growth.png",...){
   
   time_elements <- get_time_elements(object,time_range)
   growth_time <- aaply(which(time_elements), 1, function(x){
@@ -1189,9 +1204,9 @@ plotGrowth <- function(object, time_range = max(as.numeric(dimnames(object@n)$ti
           panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if(print_it) print(p)
+  if(save_it) ggsave(plot = p, filename = nameSave)
   
-  if (returnData) return(plot_dat) else return(p)
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 # growth curve
@@ -1371,7 +1386,7 @@ plotGrowthCurve <- function(object,time_range = max(as.numeric(dimnames(object@n
   return(p)
 }
 
-# traits plots -----------
+# evolution plots -----------
 
 plotTraits <- function(object, maturationSize = T, ppmr = T, dietBreadth = T, print_it = F)
 {
@@ -1650,24 +1665,24 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   
   if (is.null(SpIdx)) SpIdx <- seq(1,9)
   if (comments) 
-   {cat("SpIdx set to:")
-  print(SpIdx)}
+  {cat("SpIdx set to:")
+    print(SpIdx)}
   
   # determine the initial maturation size for normalisation purpose
   # if (Mat && is.null(Wmat))
   # {
-    #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-    #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
-    # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
-    if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
-    if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
-    
-    if (comments) {
-      cat("Wmat is")
-      print(Wmat)
-    }
+  #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
+  #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
+  # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
+  if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
+  if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
+  
+  if (comments) {
+    cat("Wmat is")
+    print(Wmat)
+  }
   #}
-
+  
   
   # beforehand
   if (save_it & is.null(dir))  # if want to save but not specified where
@@ -2195,19 +2210,19 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   normalData = F # to determine what data I have
   fisheriesData = F
   
- # get the initial wmat and Time max values
+  # get the initial wmat and Time max values
   
-    if(dir.exists(file.path(paste(directory,"/init",sep=""))))
-    {
-      WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
-      Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
-      TimeMax = WmatSim@params@species_params$timeMax[1]
-      if (comments) {
-        cat("Wmat is")
-        print(Wmat)}
-    } else {cat("Could not find Wmat not TimeMax values, taking the default ones\n")}
+  if(dir.exists(file.path(paste(directory,"/init",sep=""))))
+  {
+    WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
+    Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+    TimeMax = WmatSim@params@species_params$timeMax[1]
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)}
+  } else {cat("Could not find Wmat not TimeMax values, taking the default ones\n")}
   
-
+  
   if(init) #if I want to plot the initialisation part
   {
     if(dir.exists(file.path(paste(directory,"/init",sep=""))))
@@ -2243,73 +2258,73 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
       }
     } 
   } else {
-  # NO FISHERIES PART
-  # need to load the data first
-  if(dir.exists(file.path(paste(directory,"/normal",sep=""))))
-  {
-    if (comments) cat("Using simulations without fisheries\n")
-    normalData = T
-    normalList <- bunchLoad(folder = paste(directory,"/normal",sep=""))
-    # get the plots
-    normalTraitsList <- list()
-    for (i in 1:length(normalList))
+    # NO FISHERIES PART
+    # need to load the data first
+    if(dir.exists(file.path(paste(directory,"/normal",sep=""))))
     {
-      if (comments) cat(sprintf("Using run %g\n",i))
-      normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
-    }
-    if (comments) cat("Plots loaded")
-    speciesListN <- list()
-    for (j in SpIdx) # for every species
-    {
-      speciesData <- NULL
-      for (i in 1:length(normalTraitsList)) # at each time
+      if (comments) cat("Using simulations without fisheries\n")
+      normalData = T
+      normalList <- bunchLoad(folder = paste(directory,"/normal",sep=""))
+      # get the plots
+      normalTraitsList <- list()
+      for (i in 1:length(normalList))
       {
-        if (!is.null(normalTraitsList[[i]][[1]][[j]]))
+        if (comments) cat(sprintf("Using run %g\n",i))
+        normalTraitsList[[i]] <- plotTraitsMulti(object = normalList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
+      }
+      if (comments) cat("Plots loaded")
+      speciesListN <- list()
+      for (j in SpIdx) # for every species
+      {
+        speciesData <- NULL
+        for (i in 1:length(normalTraitsList)) # at each time
         {
-          a <- ggplot_build(normalTraitsList[[i]][[1]][[j]]) # take the plot data
-          if (!is.null(a$data[[1]]$group))
+          if (!is.null(normalTraitsList[[i]][[1]][[j]]))
           {
-            a$data[[1]]$group <- i # change the group to the run number
-            speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            a <- ggplot_build(normalTraitsList[[i]][[1]][[j]]) # take the plot data
+            if (!is.null(a$data[[1]]$group))
+            {
+              a$data[[1]]$group <- i # change the group to the run number
+              speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            }
           }
         }
+        speciesListN[[j]] <- speciesData #this is a list of all the species at each time
       }
-      speciesListN[[j]] <- speciesData #this is a list of all the species at each time
     }
-  }
-  # FISHERIES PART
-  # need to load the data first
-  if(dir.exists(file.path(paste(directory,"/fisheries",sep=""))))
-  {
-    if (comments) cat("Using simulation with fisheries\n")
-    fisheriesData = T
-    fishList <- bunchLoad(folder = paste(directory,"/fisheries",sep=""))
-    # get the plots
-    fishTraitsList <- list()
-    for (i in 1:length(fishList)){
-      if (comments) cat(sprintf("Using run %g\n",i))
-      fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
-    }
-    if (comments) cat("Plots loaded")
-    speciesListF <- list()
-    for (j in SpIdx) # for every species
+    # FISHERIES PART
+    # need to load the data first
+    if(dir.exists(file.path(paste(directory,"/fisheries",sep=""))))
     {
-      speciesData <- NULL
-      for (i in 1:length(fishTraitsList)) # at each time
+      if (comments) cat("Using simulation with fisheries\n")
+      fisheriesData = T
+      fishList <- bunchLoad(folder = paste(directory,"/fisheries",sep=""))
+      # get the plots
+      fishTraitsList <- list()
+      for (i in 1:length(fishList)){
+        if (comments) cat(sprintf("Using run %g\n",i))
+        fishTraitsList[[i]] <- plotTraitsMulti(object = fishList[[i]],PPMR = F,Sig = F,returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax)
+      }
+      if (comments) cat("Plots loaded")
+      speciesListF <- list()
+      for (j in SpIdx) # for every species
       {
-        if (!is.null(fishTraitsList[[i]][[1]][[j]]))
+        speciesData <- NULL
+        for (i in 1:length(fishTraitsList)) # at each time
         {
-          a <- ggplot_build(fishTraitsList[[i]][[1]][[j]]) # take the plot data
-          if (!is.null(a$data[[1]]$group))
+          if (!is.null(fishTraitsList[[i]][[1]][[j]]))
           {
-            a$data[[1]]$group <- i # change the group to the run number
-            speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            a <- ggplot_build(fishTraitsList[[i]][[1]][[j]]) # take the plot data
+            if (!is.null(a$data[[1]]$group))
+            {
+              a$data[[1]]$group <- i # change the group to the run number
+              speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            }
           }
         }
+        speciesListF[[j]] <- speciesData #this is a list of all the species at each time
       }
-      speciesListF[[j]] <- speciesData #this is a list of all the species at each time
     }
-  }
   }
   # plot time
   plotMatStore = list()
@@ -2422,7 +2437,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
   
   if (comments) cat("plot done, starting the multiplot\n")
   # do the multiplot
-   if (init) path_to_png = paste(directory,"/TraitInit.png",sep="") else path_to_png = paste(directory,"/Trait.png",sep="")
+  if (init) path_to_png = paste(directory,"/TraitInit.png",sep="") else path_to_png = paste(directory,"/Trait.png",sep="")
   
   if (PPMR == F & Sig == F)
   {
@@ -2430,7 +2445,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     rowPos = rep(1:gridID[1,length(SpIdx)],gridID[2,length(SpIdx)])
     colPos = NULL
     for (i in 1:gridID[2,length(SpIdx)]) colPos = c(colPos,rep(i,gridID[1,length(SpIdx)]))
-
+    
     noRow = rowPos[length(rowPos)] # last value to determine number of row/col
     noCol = colPos[length(colPos)]
     
@@ -2440,7 +2455,7 @@ plotTraitOverlap <- function(directory, SpIdx = NULL, comments = T, Mat = T, PPM
     pushViewport(viewport(layout = grid.layout(nrow=noRow, ncol=noCol, 
                                                widths = unit(rep(10,noCol), "cm"), 
                                                heights = unit(rep(10,noRow), "cm"))))
-
+    
     
     
     for (i in SpIdx)
@@ -2493,173 +2508,173 @@ plotBiomAndTraits <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, fi
   for (column in what) # are we plotting pred or no pred sims ?
   {
     if (column == "no predation") 
-      {
+    {
       directory <- paste(folder,"/noPred",sep = "")
       listPosition = 1
       title = "No interactions"
     } else if (column == "predation") 
-      {
+    {
       directory <- paste(folder,"/Pred",sep = "")
       listPosition = 2
       title = "Predation interactions"
     } else stop("I don't know what to plot")
-
-  multiSim <- bunchLoad(folder = paste(directory,file,sep="")) # load the folder (either normal or fisheries)
-  
-  if(comments) cat("sim loaded\n")
-  
-  # color gradient
-  colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
-  colGrad <- colfunc(no_sp)
-  names(colGrad) <- seq(1,no_sp)
-
-  
-  # BIOMASS
-  sim <- superStich(multiSim) # stich the abundance together
-
-  plot_datBiom <- biom(multiSim[[1]],phenotype = T) # get the species and phenotypes abundance for one sim
-  plot_datBiom$color
-  
-  
-  p1 <- ggplot(plot_datBiom[[1]]) +
-    geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
-    geom_line(data = plot_datBiom[[2]], aes(x = time, y = value, colour = as.factor(bloodline), group = sp), alpha = 0.2) +
-    scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(1e-15, NA)) +
-    scale_x_continuous(name = NULL, labels = NULL) +
-    scale_color_manual(name = "Species", values = colGrad)+ # color gradient
-    theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
-          panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
-          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-    ggtitle(title)
-
-  plot_datBiom <- biom(sim,phenotype = F) # get the abundance data for all the sitched sim
-  p2 <- ggplot(plot_datBiom[[1]]) +
-    geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
-    scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(NA, NA)) + 
-    scale_x_continuous(name = NULL) +
-    scale_color_manual(name = "Species", values =colGrad)+ # color gradient
-    theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
-          panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
-          legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
-    ggtitle(NULL)
-
-  if(comments) cat("Biomass done\n")
-  
-  #TRAITS
-   # get the plots
-  TraitsList <- list()
-  for (i in 1:length(multiSim))
-  {
-    if (comments) cat(sprintf("Using run %g\n",i))
-    TraitsList[[i]] <- plotTraitsMulti(object = multiSim[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax, window = window)
-  }
-  if (comments) cat("Plots loaded")
-  speciesList <- list()
-  for (j in SpIdx) # for every species
-  {
-    speciesData <- NULL
-    for (i in 1:length(TraitsList)) # at each time
+    
+    multiSim <- bunchLoad(folder = paste(directory,file,sep="")) # load the folder (either normal or fisheries)
+    
+    if(comments) cat("sim loaded\n")
+    
+    # color gradient
+    colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
+    colGrad <- colfunc(no_sp)
+    names(colGrad) <- seq(1,no_sp)
+    
+    
+    # BIOMASS
+    sim <- superStich(multiSim) # stich the abundance together
+    
+    plot_datBiom <- biom(multiSim[[1]],phenotype = T) # get the species and phenotypes abundance for one sim
+    plot_datBiom$color
+    
+    
+    p1 <- ggplot(plot_datBiom[[1]]) +
+      geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
+      geom_line(data = plot_datBiom[[2]], aes(x = time, y = value, colour = as.factor(bloodline), group = sp), alpha = 0.2) +
+      scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(1e-15, NA)) +
+      scale_x_continuous(name = NULL, labels = NULL) +
+      scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+      theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
+            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+      ggtitle(title)
+    
+    plot_datBiom <- biom(sim,phenotype = F) # get the abundance data for all the sitched sim
+    p2 <- ggplot(plot_datBiom[[1]]) +
+      geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
+      scale_y_log10(name = expression(paste("Biomass in g.m"^"-3")), limits = c(NA, NA)) + 
+      scale_x_continuous(name = NULL) +
+      scale_color_manual(name = "Species", values =colGrad)+ # color gradient
+      theme(legend.title=element_blank(),panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
+            legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
+      ggtitle(NULL)
+    
+    if(comments) cat("Biomass done\n")
+    
+    #TRAITS
+    # get the plots
+    TraitsList <- list()
+    for (i in 1:length(multiSim))
     {
-      if (!is.null(TraitsList[[i]][[1]][[j]]))
+      if (comments) cat(sprintf("Using run %g\n",i))
+      TraitsList[[i]] <- plotTraitsMulti(object = multiSim[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax, window = window)
+    }
+    if (comments) cat("Plots loaded")
+    speciesList <- list()
+    for (j in SpIdx) # for every species
+    {
+      speciesData <- NULL
+      for (i in 1:length(TraitsList)) # at each time
       {
-        a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
-        if (!is.null(a$data[[1]]$group))
+        if (!is.null(TraitsList[[i]][[1]][[j]]))
         {
-          a$data[[1]]$species <- j # add species identity in the data
-          a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
-          
-          speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+          a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
+          if (!is.null(a$data[[1]]$group))
+          {
+            a$data[[1]]$species <- j # add species identity in the data
+            a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+            
+            speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+          }
         }
       }
+      speciesList[[j]] <- speciesData #this is a list of all the species at each time
     }
-    speciesList[[j]] <- speciesData #this is a list of all the species at each time
-  }
-  
-  # let's add the initial trait run
-  multiSimInit <- bunchLoad(folder = paste(directory,"/init",sep="")) # load the init sims
-  
-  TraitsListInit <- list()
-  for (i in 1:length(multiSimInit))
-  {
-    if (comments) cat(sprintf("Using run %g\n",i))
-    TraitsListInit[[i]] <- plotTraitsMulti(object = multiSimInit[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = 0, window = window)
-  }
-  if (comments) cat("Init plots loaded")
-  speciesListInit <- list()
-  for (j in SpIdx) # for every species
-  {
-    speciesDataInit <- NULL
-    for (i in 1:length(TraitsListInit)) # at each time
+    
+    # let's add the initial trait run
+    multiSimInit <- bunchLoad(folder = paste(directory,"/init",sep="")) # load the init sims
+    
+    TraitsListInit <- list()
+    for (i in 1:length(multiSimInit))
     {
-      if (!is.null(TraitsListInit[[i]][[1]][[j]]))
+      if (comments) cat(sprintf("Using run %g\n",i))
+      TraitsListInit[[i]] <- plotTraitsMulti(object = multiSimInit[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = 0, window = window)
+    }
+    if (comments) cat("Init plots loaded")
+    speciesListInit <- list()
+    for (j in SpIdx) # for every species
+    {
+      speciesDataInit <- NULL
+      for (i in 1:length(TraitsListInit)) # at each time
       {
-        a <- ggplot_build(TraitsListInit[[i]][[1]][[j]]) # take the plot data
-        if (!is.null(a$data[[1]]$group))
+        if (!is.null(TraitsListInit[[i]][[1]][[j]]))
         {
-          a$data[[1]]$species <- j # add species identity in the data
-          a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
-          
-          speciesDataInit <- rbind(speciesDataInit,a$data[[1]]) #bind the same species at different time
+          a <- ggplot_build(TraitsListInit[[i]][[1]][[j]]) # take the plot data
+          if (!is.null(a$data[[1]]$group))
+          {
+            a$data[[1]]$species <- j # add species identity in the data
+            a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+            
+            speciesDataInit <- rbind(speciesDataInit,a$data[[1]]) #bind the same species at different time
+          }
         }
       }
+      speciesListInit[[j]] <- speciesDataInit #this is a list of all the species at each time
     }
-    speciesListInit[[j]] <- speciesDataInit #this is a list of all the species at each time
-  }
-  
-  if (is.null(window)) window = c(-1,1)
-  if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
-  plot_datTrait <- do.call("rbind",speciesList)
-  plot_datTraitInit <- do.call("rbind",speciesListInit)
-  
-  # this is not even coding anymore, adding the time shift to the sim after init
-  plot_datTrait$x <- plot_datTrait$x + TimeMax * dt
-  
-  plot_datMiracle <- rbind(plot_datTrait,plot_datTraitInit)
-  
-  p3 <- ggplot(plot_datMiracle)+
-    geom_line(aes(x=x,y=y, group = group, color = as.factor(species))) +
-    scale_x_continuous(name = "Time in years")+
-    scale_y_continuous(name = "Trait relative proportion to initial value", limits = window)+
-    scale_color_manual(name = "Species", values = colGrad)+ # color gradient
-    theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-          panel.grid.minor = element_line(colour = "grey92"), legend.position="bottom", 
-          #legend.justification=c(1,1),
-          legend.key = element_rect(fill = "white"))+ 
-    guides(color = guide_legend(nrow=1)) +
-    ggtitle(NULL)
-  
-  plotList[[listPosition]] <- list(p1,p2,p3)
+    
+    if (is.null(window)) window = c(-1,1)
+    if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
+    plot_datTrait <- do.call("rbind",speciesList)
+    plot_datTraitInit <- do.call("rbind",speciesListInit)
+    
+    # this is not even coding anymore, adding the time shift to the sim after init
+    plot_datTrait$x <- plot_datTrait$x + TimeMax * dt
+    
+    plot_datMiracle <- rbind(plot_datTrait,plot_datTraitInit)
+    
+    p3 <- ggplot(plot_datMiracle)+
+      geom_line(aes(x=x,y=y, group = group, color = as.factor(species))) +
+      scale_x_continuous(name = "Time in years")+
+      scale_y_continuous(name = "Trait relative proportion to initial value", limits = window)+
+      scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+      theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"), legend.position="bottom", 
+            #legend.justification=c(1,1),
+            legend.key = element_rect(fill = "white"))+ 
+      guides(color = guide_legend(nrow=1)) +
+      ggtitle(NULL)
+    
+    plotList[[listPosition]] <- list(p1,p2,p3)
   }
   plotList <- plotList[lapply(plotList,length)>0] # if a slot is empty
   
   # MULTIPLOT
-
+  
   # what do we get to plot?
   rowPos = rep(seq(1,3),2)  
   colPos = c(rep(1,3),rep(2,3))
   if (length(plotList) == 2) # if I have both plot list it means it is a 2 col plot
   {
-  png(filename=path_to_png, width = 20, height = 30, units = "cm",res = 600)
-
-  grid.newpage() 
-  pushViewport(viewport(layout = grid.layout(nrow=3, ncol=2, 
-                                             widths = unit(10, "cm"), 
-                                             heights = unit(10, "cm"))))
-  for (i in rowPos)
-    for (j in colPos)
-    print(plotList[[j]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
-  
-  # print(plotList[[1]][[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 1)) 
-  # print(plotList[[1]][[2]], vp = viewport(layout.pos.row = 2, layout.pos.col = 1)) 
-  # print(plotList[[1]][[3]], vp = viewport(layout.pos.row = 3, layout.pos.col = 1)) 
-  # print(plotList[[2]][[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 2)) 
-  # print(plotList[[2]][[2]], vp = viewport(layout.pos.row = 2, layout.pos.col = 2)) 
-  # print(plotList[[2]][[3]], vp = viewport(layout.pos.row = 3, layout.pos.col = 2)) 
-  
+    png(filename=path_to_png, width = 20, height = 30, units = "cm",res = 600)
+    
+    grid.newpage() 
+    pushViewport(viewport(layout = grid.layout(nrow=3, ncol=2, 
+                                               widths = unit(10, "cm"), 
+                                               heights = unit(10, "cm"))))
+    for (i in rowPos)
+      for (j in colPos)
+        print(plotList[[j]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
+    
+    # print(plotList[[1]][[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 1)) 
+    # print(plotList[[1]][[2]], vp = viewport(layout.pos.row = 2, layout.pos.col = 1)) 
+    # print(plotList[[1]][[3]], vp = viewport(layout.pos.row = 3, layout.pos.col = 1)) 
+    # print(plotList[[2]][[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 2)) 
+    # print(plotList[[2]][[2]], vp = viewport(layout.pos.row = 2, layout.pos.col = 2)) 
+    # print(plotList[[2]][[3]], vp = viewport(layout.pos.row = 3, layout.pos.col = 2)) 
+    
   } else {
     
     png(filename=path_to_png, width = 10, height = 30, units = "cm",res = 600)
-
+    
     grid.newpage() 
     pushViewport(viewport(layout = grid.layout(nrow=3, ncol=1, 
                                                widths = unit(10, "cm"), 
@@ -2705,24 +2720,24 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
     if(comments) cat("sim loaded\n")
     # get the initial stuff
     dt = 0.1
-
-      SpIdx = sort(unique(multiSim[[1]]@params@species_params$species)) # determine spidx if not already given by user
-      no_sp = length(SpIdx) # get the species number from this
-      Wmat = multiSim[[1]]@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values
-      TimeMax = multiSim[[1]]@params@species_params$timeMax[1] # and the length of the initialisation
-      if (comments) cat("Initialisation done\n")
-
+    
+    SpIdx = sort(unique(multiSim[[1]]@params@species_params$species)) # determine spidx if not already given by user
+    no_sp = length(SpIdx) # get the species number from this
+    Wmat = multiSim[[1]]@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values
+    TimeMax = multiSim[[1]]@params@species_params$timeMax[1] # and the length of the initialisation
+    if (comments) cat("Initialisation done\n")
+    
     # color gradient
     colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
     colGrad <- colfunc(no_sp)
     names(colGrad) <- seq(1,no_sp)
-
+    
     # BIOMASS
     sim <- superStich(multiSim) # stich the abundance together
-
+    
     plot_datBiom1 <- biom(multiSim[[1]],phenotype = T) # get the species and phenotypes abundance for one sim
     if (returnData) columnList[[1]] <- plot_datBiom1
-      
+    
     p1 <- ggplot(plot_datBiom1[[1]]) +
       geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1) +
       geom_line(data = plot_datBiom1[[2]], aes(x = time, y = value, colour = as.factor(bloodline), group = sp), alpha = 0.2) +
@@ -2733,7 +2748,7 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
             panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
             legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
       ggtitle(title[1])
-
+    
     plot_datBiom2 <- biom(sim,phenotype = F) # get the abundance data for all the sitched sim
     if (returnData) columnList[[2]] <- plot_datBiom2
     
@@ -2746,7 +2761,7 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
             panel.grid.minor = element_line(colour = "grey92"), legend.position="none",
             legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+ #none remove legend
       ggtitle(title[2])
-
+    
     if(comments) cat("Biomass done\n")
     
     #TRAITS
@@ -2784,7 +2799,7 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
     
     plot_datTrait <- do.call("rbind",speciesList)
     if (returnData) columnList[[3]] <- plot_datTrait
-
+    
     p3 <- ggplot(plot_datTrait)+
       geom_line(aes(x=x,y=y, group = group, color = as.factor(species))) +
       scale_x_continuous(name = "Time in years")+
@@ -2803,7 +2818,7 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
   }
   if (returnData) return(dataList)
   plotList <- plotList[lapply(plotList,length)>0] # if a slot is empty
-
+  
   # MULTIPLOT
   
   # what do we get to plot?
@@ -2820,7 +2835,7 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
     for (i in rowPos)
       for (j in colPos)
         print(plotList[[j]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
-
+    
   } else {
     
     png(filename=path_to_png, width = 12, height = 30, units = "cm",res = 600)
@@ -2842,12 +2857,12 @@ plotDiffSp <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, file = NU
 plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, comments = T, window = NULL, what = c("normal","fisheries"), dt = 0.1, returnData = F)
 {
   tic()
- 
+  
   path_to_png = paste(folder,"/Biom&TraitsCompareFished.png",sep="")
   
   plotList <- list() # to store the plots
   plot_datList <- list() #to store the data
-   multiSimInit <- bunchLoad(folder = paste(folder,"/init",sep=""))
+  multiSimInit <- bunchLoad(folder = paste(folder,"/init",sep=""))
   
   if(comments) cat("Init sims loaded\n")
   
@@ -2867,7 +2882,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       cat("Fishery runs")
     } else stop("I don't know what to plot")
     
-   
+    
     template = multiSimInit[[1]]
     longSimList <- list()
     timeMax = multiSimInit[[1]]@params@species_params$timeMax[1] + multiSim[[1]]@params@species_params$timeMax[1]
@@ -2886,7 +2901,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       SummaryParams@species_params = a[order(a$pop,a$ecotype),]
       
       #if (is.null(SpIdx)) SpIdx = sort(unique(SummaryParams@species_params$species))
-
+      
       if (comments) cat("Data handling\n")
       
       result = list(list(multiSimInit[[x]],multiSim[[x]]),SummaryParams) # cannot use finalTOuch exactly as the data as been divided by 10 (dimnames issues)
@@ -2939,7 +2954,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       gc()
       
       longSimList[[x]] <- sim
-
+      
     }
     
     if (comments) cat("Data ready\n")  
@@ -2953,7 +2968,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
     colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
     colGrad <- colfunc(no_sp)
     names(colGrad) <- seq(1,no_sp)
-
+    
     #TRAITS
     # get the plots
     TraitsList <- list()
@@ -2974,10 +2989,10 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
         {
           a <- TraitsList[[i]][[1]][[j]] # take the plot data
           
-            a$species <- j # add species identity in the data
-            a$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
-            
-            speciesData <- rbind(speciesData,a) #bind the same species at different time
+          a$species <- j # add species identity in the data
+          a$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+          
+          speciesData <- rbind(speciesData,a) #bind the same species at different time
           
         }
       }
@@ -3008,7 +3023,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
     if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
     
     plot_datTrait <- do.call("rbind",speciesList)
-
+    
     p3 <- ggplot(plot_datTrait)+
       geom_smooth(aes(x=time,y=percentMean, group = group, color = as.factor(species))) +
       scale_x_continuous(name = "Time in years", limits = c(NA,NA))+
@@ -3021,63 +3036,63 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
             legend.key = element_rect(fill = "white"))+ 
       guides(color = guide_legend(nrow=1)) +
       ggtitle(title[1])
-
+    
     
     plotList[[listPosition]] <- p3
     plot_datList[[listPosition]] <- plot_datTrait
   }
-   
-   if(returnData) return(plot_datList) else{
-   
-  plotList <- plotList[lapply(plotList,length)>0] # if a slot is empty
   
-  # MULTIPLOT
-  
-  png(filename=path_to_png, width = 24, height = 10, units = "cm",res = 600)
-  
-  grid.newpage()
-  pushViewport(viewport(layout = grid.layout(nrow=1, ncol=2,
-                                             widths = unit(12, "cm"),
-                                             heights = unit(10, "cm"))))
-  
-  print(plotList[[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
-  print(plotList[[2]], vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
-  
-  
-  # what do we get to plot?
-  # rowPos = rep(seq(1,3),2)
-  # colPos = c(rep(1,3),rep(2,3))
-  # if (length(plotList) == 2) # if I have both plot list it means it is a 2 col plot
-  # {
-  #   png(filename=path_to_png, width = 24, height = 30, units = "cm",res = 600)
-  #   
-  #   grid.newpage()
-  #   pushViewport(viewport(layout = grid.layout(nrow=3, ncol=2,
-  #                                              widths = unit(12, "cm"),
-  #                                              heights = unit(10, "cm"))))
-  #   for (i in rowPos)
-  #     for (j in colPos)
-  #       print(plotList[[j]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
-  #   
-  # } else {
-  #   
-  #   png(filename=path_to_png, width = 12, height = 30, units = "cm",res = 600)
-  #   
-  #   grid.newpage()
-  #   pushViewport(viewport(layout = grid.layout(nrow=3, ncol=1,
-  #                                              widths = unit(12, "cm"),
-  #                                              heights = unit(10, "cm"))))
-  #   
-  #   for (i in rowPos)
-  #     print(plotList[[1]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 1))
-  # }
-  # 
-  dev.off()
-   }
+  if(returnData) return(plot_datList) else{
+    
+    plotList <- plotList[lapply(plotList,length)>0] # if a slot is empty
+    
+    # MULTIPLOT
+    
+    png(filename=path_to_png, width = 24, height = 10, units = "cm",res = 600)
+    
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow=1, ncol=2,
+                                               widths = unit(12, "cm"),
+                                               heights = unit(10, "cm"))))
+    
+    print(plotList[[1]], vp = viewport(layout.pos.row = 1, layout.pos.col = 1))
+    print(plotList[[2]], vp = viewport(layout.pos.row = 1, layout.pos.col = 2))
+    
+    
+    # what do we get to plot?
+    # rowPos = rep(seq(1,3),2)
+    # colPos = c(rep(1,3),rep(2,3))
+    # if (length(plotList) == 2) # if I have both plot list it means it is a 2 col plot
+    # {
+    #   png(filename=path_to_png, width = 24, height = 30, units = "cm",res = 600)
+    #   
+    #   grid.newpage()
+    #   pushViewport(viewport(layout = grid.layout(nrow=3, ncol=2,
+    #                                              widths = unit(12, "cm"),
+    #                                              heights = unit(10, "cm"))))
+    #   for (i in rowPos)
+    #     for (j in colPos)
+    #       print(plotList[[j]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
+    #   
+    # } else {
+    #   
+    #   png(filename=path_to_png, width = 12, height = 30, units = "cm",res = 600)
+    #   
+    #   grid.newpage()
+    #   pushViewport(viewport(layout = grid.layout(nrow=3, ncol=1,
+    #                                              widths = unit(12, "cm"),
+    #                                              heights = unit(10, "cm"))))
+    #   
+    #   for (i in rowPos)
+    #     print(plotList[[1]][[i]], vp = viewport(layout.pos.row = i, layout.pos.col = 1))
+    # }
+    # 
+    dev.off()
+  }
   toc()
 }
 
- 
+
 plotTraitRelative <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, comments = T, window = NULL, what = c("3sp","9sp"), returnData = F)
 {
   tic()
@@ -3101,75 +3116,75 @@ plotTraitRelative <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, co
       title = "9 species"
     } else stop("I don't know what to plot")
     
-  dataList <- list()
-  init <- get(load(paste(folder2,"/init/run1/run.Rdata",sep="")))
-  
-  for (z in 1:2)
-  {
-if (z == 1) multiSim <- bunchLoad(folder = paste(folder2,"/normal",sep=""))
-if (z == 2) multiSim <- bunchLoad(folder = paste(folder2,"/fisheries",sep=""))
+    dataList <- list()
+    init <- get(load(paste(folder2,"/init/run1/run.Rdata",sep="")))
+    
+    for (z in 1:2)
+    {
+      if (z == 1) multiSim <- bunchLoad(folder = paste(folder2,"/normal",sep=""))
+      if (z == 2) multiSim <- bunchLoad(folder = paste(folder2,"/fisheries",sep=""))
       
-
-   
-    if (comments) cat("Data ready\n")  
-    # get the initial stuff
-    SpIdx = sort(unique(init@params@species_params$species)) # determine spidx if not already given by user
-    no_sp = length(SpIdx) # get the species number from this
-    Wmat = init@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values
-    TimeMax = init@params@species_params$timeMax[1] # and the length of the initialisation
-    if (comments) cat("Initialisation done\n")
-    
-    
-    # color gradient
-    colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
-    colGrad <- colfunc(no_sp)
-    names(colGrad) <- seq(1,no_sp)
-    if (no_sp == 9) colLine <- c("solid","dashed","solid","dashed","solid","longdash","solid","longdash","solid") else colLine = rep("solid",3) # 3,6 and 8 are dashed
-    
-    names(colLine) <- seq(1,no_sp)
-    
-    #TRAITS
-    # get the plots
-    TraitsList <- list()
-    for (i in 1:length(multiSim))
-    {
-      if (comments) cat(sprintf("Using run %g\n",i))
-      TraitsList[[i]] <- plotTraitsMulti(object = multiSim[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax, window = window, Normalisation = F)
-    }
-    if (comments) cat("Plots loaded")
-    speciesList <- list()
-    for (j in SpIdx) # for every species
-    {
-      speciesData <- NULL
-      for (i in 1:length(TraitsList)) # at each time
+      
+      
+      if (comments) cat("Data ready\n")  
+      # get the initial stuff
+      SpIdx = sort(unique(init@params@species_params$species)) # determine spidx if not already given by user
+      no_sp = length(SpIdx) # get the species number from this
+      Wmat = init@params@species_params$w_mat[1:SpIdx[length(SpIdx)]] # get the mat size values
+      TimeMax = init@params@species_params$timeMax[1] # and the length of the initialisation
+      if (comments) cat("Initialisation done\n")
+      
+      
+      # color gradient
+      colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
+      colGrad <- colfunc(no_sp)
+      names(colGrad) <- seq(1,no_sp)
+      if (no_sp == 9) colLine <- c("solid","dashed","solid","dashed","solid","longdash","solid","longdash","solid") else colLine = rep("solid",3) # 3,6 and 8 are dashed
+      
+      names(colLine) <- seq(1,no_sp)
+      
+      #TRAITS
+      # get the plots
+      TraitsList <- list()
+      for (i in 1:length(multiSim))
       {
-        if (!is.null(TraitsList[[i]][[1]][[j]]))
+        if (comments) cat(sprintf("Using run %g\n",i))
+        TraitsList[[i]] <- plotTraitsMulti(object = multiSim[[i]],Mat = Mat, PPMR = PPMR,Sig = Sig, returnData = T, SpIdx = SpIdx, Wmat = Wmat, TimeMax = TimeMax, window = window, Normalisation = F)
+      }
+      if (comments) cat("Plots loaded")
+      speciesList <- list()
+      for (j in SpIdx) # for every species
+      {
+        speciesData <- NULL
+        for (i in 1:length(TraitsList)) # at each time
         {
-          a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
-          if (!is.null(a$data[[1]]$group))
+          if (!is.null(TraitsList[[i]][[1]][[j]]))
           {
-            a$data[[1]]$species <- j # add species identity in the data
-            a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
-            
-            speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            a <- ggplot_build(TraitsList[[i]][[1]][[j]]) # take the plot data
+            if (!is.null(a$data[[1]]$group))
+            {
+              a$data[[1]]$species <- j # add species identity in the data
+              a$data[[1]]$group <- 100*j + i # change the group to the run number (up to 99 different runs to keep species identity as hundreds)
+              
+              speciesData <- rbind(speciesData,a$data[[1]]) #bind the same species at different time
+            }
           }
         }
+        speciesList[[j]] <- speciesData #this is a list of all the species at each time
       }
-      speciesList[[j]] <- speciesData #this is a list of all the species at each time
+      
+      if (is.null(window)) window = c(-1,1)
+      if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
+      
+      plot_datTrait <- do.call("rbind",speciesList)
+      
+      dataList[[z]] <- plot_datTrait
+      
     }
     
-    if (is.null(window)) window = c(-1,1)
-    if (comments) cat(sprintf("windows is set from %g to %g\n",window[1], window[2]))
+    dataList[[1]]$y <- dataList[[2]]$y / dataList[[1]]$y 
     
-    plot_datTrait <- do.call("rbind",speciesList)
     
-    dataList[[z]] <- plot_datTrait
-    
-  }
-
-  dataList[[1]]$y <- dataList[[2]]$y / dataList[[1]]$y 
-
-
     p3 <- ggplot(dataList[[1]])+
       geom_line(aes(x=x,y=y, group = group, color = as.factor(species), linetype = as.factor(species))) +
       scale_x_continuous(name = "Time in years", limits = c(NA,NA))+
@@ -3182,7 +3197,7 @@ if (z == 2) multiSim <- bunchLoad(folder = paste(folder2,"/fisheries",sep=""))
             legend.key = element_rect(fill = "white"))+ 
       guides(color = guide_legend(nrow=1)) +
       ggtitle(title)
-
+    
     plotList[[listPosition]] <- p3
     buildList[[listPosition]] <- list(ggplot_build(p3),dataList[[1]]) # the color gradient changes for the first loop if I don't do this. Why? I have no fucking idea
     
@@ -3597,17 +3612,17 @@ plotFitness <- function(listObject,whatTime = NULL , where = getwd(), returnData
   {
     #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
     #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
-  # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
-  if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
-  if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
-  
-  if (comments) {
-    cat("Wmat is")
-    print(Wmat)
+    # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
+    if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
+    if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
+    
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)
+    }
   }
-  }
   
-
+  
   
   listOutput = list()
   for (x in 1:length(listObject))
@@ -3937,10 +3952,10 @@ plotFitnessMultiOverlap <- function(directory, SpIdx = NULL, Mat = T, PPMR = T, 
     if(dir.exists(file.path(paste(directory,"/init",sep=""))))
     {
       WmatSim <- get(load(paste(directory,"/init/run1/run.Rdata",sep="")))
-    Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
-    if (comments) {
-      cat("Wmat is")
-      print(Wmat)}
+      Wmat = WmatSim@params@species_params$w_mat[1:SpIdx[length(SpIdx)]]
+      if (comments) {
+        cat("Wmat is")
+        print(Wmat)}
     } else {cat("Could not find Wmat values, taking the default ones\n")}
   }
   
@@ -4444,7 +4459,7 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
         for (i in 1:dim(SumPar)[1]) if (SumPar$exit[i] == 0) SumPar$exit[i] = timeMax # the not extinct ones get the end sim as extinction value
         
         DemList <- list()
-
+        
         for (x in SpIdx) # for every species
         {
           exit <- NA
@@ -4460,30 +4475,30 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
               if (SpSumPar$exit[j] != timeMax) # do not take into account extinction at the last step (because its not)
                 DemCount[ceiling(SpSumPar$exit[j]*dt),2] = DemCount[ceiling(SpSumPar$exit[j]*dt),2] -1 # an extinction happened at that time
           } else { DemCount[ceiling(SpSumPar$exit[1]*dt),2] = DemCount[ceiling(SpSumPar$exit[1]*dt),2] -1 } # if only one phenotype in sp
-              
-              # I have a matrix with holes, need to fill them
-              ExCount = 0 
-              for (i in 2:dim(DemCount)[1])
-              {
-                if (DemCount[i,1] == 0) DemCount[i,1] = DemCount[i-1,1]
-                if (DemCount[i,2] != 0)
-                {
-                  DemCount[i,2] = ExCount + abs(DemCount[i,2])
-                  ExCount = abs(DemCount[i,2]) } else  {
-                    DemCount[i,2] =  ExCount 
-                  }
+          
+          # I have a matrix with holes, need to fill them
+          ExCount = 0 
+          for (i in 2:dim(DemCount)[1])
+          {
+            if (DemCount[i,1] == 0) DemCount[i,1] = DemCount[i-1,1]
+            if (DemCount[i,2] != 0)
+            {
+              DemCount[i,2] = ExCount + abs(DemCount[i,2])
+              ExCount = abs(DemCount[i,2]) } else  {
+                DemCount[i,2] =  ExCount 
               }
-              
-              pop <- DemCount[,1] - DemCount[,2] # pop - extinction
-              DemCount <- as.data.frame(pop) # keep the alive number of phen
-              colnames(DemCount) <- c("pop")
-              DemCount$time <- as.numeric(rownames(DemCount))
-              DemCount$species <- x
-              DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
-              if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
-              DemList[[x]] <- DemCount
-              
-              if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
+          }
+          
+          pop <- DemCount[,1] - DemCount[,2] # pop - extinction
+          DemCount <- as.data.frame(pop) # keep the alive number of phen
+          colnames(DemCount) <- c("pop")
+          DemCount$time <- as.numeric(rownames(DemCount))
+          DemCount$species <- x
+          DemCount$pop[DemCount$pop == 0] <- NA # if species goes extinct, put some NA (do not count in the mean)
+          if (sum(is.na(DemCount$pop))) exit <- which(is.na(DemCount$pop))[1] # remember when the species go extinct
+          DemList[[x]] <- DemCount
+          
+          if(is.finite(exit)) exit_df<- rbind(exit_df,c(x,exit))
           
         }
         scenarioList[[listPosition]] <- do.call(rbind,lapply(DemList,function(x)x)) # store the list as only one dataframe (with the species identity)
@@ -4492,7 +4507,7 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
     }
   }
   colnames(exit_df) <- c("species","extinction")
-
+  
   # do an average across simulation
   plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
                          apply(do.call(cbind,lapply(dataList, function(x) x[[1]]$pop)),1,mean, na.rm = T),
