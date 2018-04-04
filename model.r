@@ -53,7 +53,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     predMort = NULL, # if want to replace dynamics m2 by constant one
                     initPool = 10,
                     ...){
-
+  
   
   if(ken)
   {
@@ -143,7 +143,11 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                  mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
                  mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
                  mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
+<<<<<<< HEAD
                  },
+=======
+               },
+>>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
                beta = {
                  # Trait = PPMR
                  sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
@@ -182,15 +186,23 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                {
                  print("Trait specified is not in the list")
                })
+<<<<<<< HEAD
        
+=======
+        
+>>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
         # integrate the mutant in the df 
         rownames(mutant) = mutant$ecotype
         param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
         
         #mutant abundance
         n_mutant <- rep(0,no_w)
+<<<<<<< HEAD
         n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
         #n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
+=======
+        n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
+>>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
         n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
         n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
         rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
@@ -198,12 +210,21 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       
       
     }
+<<<<<<< HEAD
 
     #need to update some suff now that there is one more sp
     no_sp = dim(param@species_params)[1]
 
     # Recreate the "param" object needed for the projection
    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+=======
+    
+    #need to update some suff now that there is one more sp
+    no_sp = dim(param@species_params)[1]
+    
+    # Recreate the "param" object needed for the projection
+    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+>>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
   }
   else 
   {
@@ -267,8 +288,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           
           # if (oneSpMode) #special case if only one species as I reach easly the limit of 16 digits names
           # {do something here} else {
-            mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
-            while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+          mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
+          while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
           # } 
           
           # TRAITS

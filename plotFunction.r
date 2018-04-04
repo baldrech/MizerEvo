@@ -2873,7 +2873,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       listPosition = 1
       multiSim <- bunchLoad(folder = paste(folder,"/normal",sep=""))
       title = c("(a) Without fisheries","(b)","(c)")
-      cat("Normal runs")
+      cat("Normal runs\n")
     } else if (column == "fisheries") 
     {
       listPosition = 2
@@ -4527,28 +4527,59 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
   # colnames(plot_dat) <- c("time","species","popN","exitN","popF","exitF")
   
   # PLOTTING TIME
-  # color gradient
-  colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
+  
+  #SpIdx <- seq(1,9)
+  colfunc <- colorRampPalette(c("firebrick3","darkturquoise", "orange"))
   colGrad <- colfunc(length(SpIdx))
   names(colGrad) <- SpIdx
-  if (length(SpIdx) == 9) colLine <- c("solid","dashed","solid","dashed","solid","longdash","solid","longdash","solid") else colLine = rep("solid",3) # 3,6 and 8 are dashed
-  
-  
+  colLine <- c("solid","dashed")
+  names(colLine) <- c("un-fished","fished")
   
   p <- ggplot(plot_dat) +
-    geom_line(aes(x = time, y = popN-exitN, color = as.factor(species)))+
-    geom_line(aes(x = time, y = popF-exitF,color = as.factor(species)), linetype = "dashed")+
+    stat_smooth(aes(x = time, y = popN, color = as.factor(species), linetype = "un-fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+    stat_smooth(aes(x = time, y = popF,color = as.factor(species), linetype = "fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+    geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+    geom_vline(xintercept = 4000, linetype = "dashed") +
     scale_x_continuous(name = "Time (yr)") +
     scale_y_continuous(name = "Number of phenotypes")+
     scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+    scale_linetype_manual(name = "Fisheries", values = colLine)+
     theme(legend.title=element_blank(),
-          legend.position=c(0.19,0.95),
+          legend.position=c(0.5,0.95),
           legend.justification=c(1,1),
+          legend.box = "horizontal",
           legend.key = element_rect(fill = "white"),
           panel.background = element_rect(fill = "white", color = "black"),
           panel.grid.minor = element_line(colour = "grey92"))+
-    guides(color=guide_legend(override.aes=list(fill=NA)))+
+    guides(color=guide_legend(override.aes=list(fill=NA), order =1),
+           linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
     ggtitle("Variation of phenotype's number throughout the simulation")
+  
+  
+  
+  
+  # color gradient
+  # colfunc <- colorRampPalette(c("green4","orange", "steelblue"))
+  # colGrad <- colfunc(length(SpIdx))
+  # names(colGrad) <- SpIdx
+  # if (length(SpIdx) == 9) colLine <- c("solid","dashed","solid","dashed","solid","longdash","solid","longdash","solid") else colLine = rep("solid",3) # 3,6 and 8 are dashed
+  # 
+  # 
+  # 
+  # p <- ggplot(plot_dat) +
+  #   geom_line(aes(x = time, y = popN-exitN, color = as.factor(species)))+
+  #   geom_line(aes(x = time, y = popF-exitF,color = as.factor(species)), linetype = "dashed")+
+  #   scale_x_continuous(name = "Time (yr)") +
+  #   scale_y_continuous(name = "Number of phenotypes")+
+  #   scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+  #   theme(legend.title=element_blank(),
+  #         legend.position=c(0.19,0.95),
+  #         legend.justification=c(1,1),
+  #         legend.key = element_rect(fill = "white"),
+  #         panel.background = element_rect(fill = "white", color = "black"),
+  #         panel.grid.minor = element_line(colour = "grey92"))+
+  #   guides(color=guide_legend(override.aes=list(fill=NA)))+
+  #   ggtitle("Variation of phenotype's number throughout the simulation")
   
   if(returnData) return(list(plot_dat, exit_df)) else return(p)
   

@@ -354,17 +354,11 @@ setMethod('getCFeedingLevel', signature(object='MizerParams', n = 'matrix', n_pp
             return(f)
           })
 
-
-
-
-
-
 #' @rdname getCFeedingLevel-methods
 #' @aliases getFeedingLevel,MizerParams,matrix,numeric,missing-method
 setMethod('getCFeedingLevel', signature(object='MizerParams', n = 'matrix', n_pp='numeric', phi_prey='missing'),
           function(object, n, n_pp, ...){
             phi_prey <- getPhiPrey(object, n=n, n_pp=n_pp)
-          
             # encountered food = available food * search volume
             #encount <- object@search_vol * phi_prey
             # calculate feeding level
