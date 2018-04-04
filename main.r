@@ -22,14 +22,14 @@ source("TBM1.r") # the model from mizer (more like a set up)
 source("model.r") # my model 
 source("utility.r") # helpful functions
 
-# little script to check sim content ----------------
-a<- get(load("eta5/fisheries/run1/run.Rdata"))
-a@params@species_params$knife_edge_size
-a@params@interaction
-a@params@species_params$r_max
+# # little script to check sim content ----------------
+# a<- get(load("eta5/fisheries/run1/run.Rdata"))
+# a@params@species_params$knife_edge_size
+# a@params@interaction
+# a@params@species_params$r_max
 
 # multi species simulations ----------
-file_name = "/Test"
+file_name = "/ParamRmd"
 
 # PARAMETERS
 # physio
@@ -38,7 +38,6 @@ eta = 0.5
 min_w_inf <- 10
 max_w_inf <- 1e5
 RMAX = T
-interaction = 0.5
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
 # fisheries
@@ -47,28 +46,70 @@ knife_edges <- w_inf * eta
 
 # other
 t_max = 50
-no_run = 2
+no_run = 20
 no_sim = 1
 
 # initialisation phase (4000 yr)
 for (i in 1:no_sim)
 {
+  # parameters worth checking: h, ks, z0pre, sigma, beta, f0, erepro, w_pp_cutoff
+  # defaults
+  h = 85
+  ks = 4
+  z0pre = 2
+  sigma = 1
+  beta = 100
+  f0 = 0.5
+  erepro = 1
+  w_pp_cutoff = 1
+  interaction = 0.5
+  
+  
+  switch(i,
+         "1" = {h = 40},
+         "2" = {ks = 8},
+         "3" = {z0pre = 10},
+         "4" = {sigma = 1.3},
+         "5" = {beta = 50},
+         "6" = {f0 = 0.6},
+         "7" = {erepro = 0.1},
+         "8" = {w_pp_cutoff = 1e4},
+         "9" = {interaction = 1},
+         {})
+  
+  #h = 10*i +10
+  #ks = i
+  
+  
   tic()
   cat(sprintf("Simulation number %g\n",i))
-  path_to_save = paste(getwd(),file_name,"/init/run", i, sep = "")
+  path_to_save = paste(getwd(),file_name,"/run", i, sep = "")
   
   sim <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
-                 max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
-                 OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1,
+                 max_w_inf = max_w_inf, RMAX = RMAX, 
+                 OptMutant = "M2",  ken = F, initTime = 1, initPool = 10, mAmplitude = 0.25,
+                 h = h,
+                 ks = ks,
+                 z0pre = z0pre,
+                 sigma = sigma,
+                 beta = beta,
+                 f0 = f0,
+                 erepro = erepro,
+                 w_pp_cutoff = w_pp_cutoff,
+                 cannibalism = interaction, 
                  effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
                  save_it = T, path_to_save = path_to_save,
                  print_it = T, normalFeeding = F, Traits = "eta")
-
-#rm(sim)
-for (j in 1:20) gc()
-toc()
+  
+  #rm(sim)
+  for (j in 1:20) gc()
+  toc()
+  # ks=1
+  # plotGrowth(sim, save_it = T,print_it = F, nameSave = paste(getwd(),file_name,"/init/Growth",ks,".png",sep=""))
+  # plotDynamics(sim, save_it = T,print_it = F, nameSave = paste(getwd(),file_name,"/init/Biomass",ks,".png",sep=""))
+  # PlotNoSp(sim, save_it = T,print_it = F, nameSave = paste(getwd(),file_name,"/init/noSp",ks,".png",sep=""))
+  
 }
-
 # simulation after initialisation
 
 folder <- paste(getwd(),file_name,sep="")
@@ -129,8 +170,6 @@ library(rmarkdown)
 library(RColorBrewer)
 library(tictoc)
 
-dir <-"/mnt/home/romain/mystuff"
-setwd(dir)
 source("MizerParams-class.r") #to get the Constructor
 source("selectivity_funcs.r") #to get the knife_edge function
 source("methods.r") #I'm doing my own methods then!
@@ -199,6 +238,20 @@ toc()
 
 
 # working on that right now -------------------
+
+# investigate this fucking growth
+object <- get(load("ParamChap1/init/run4/run.Rdata"))
+# Plot realised intake versus maximum intake of small and large individuals to see what is causing decrease in growth at large sizes. 
+# Is it different among large and small species? 
+# Is it food limitation or is metabolism too high? 
+# If this is food limitation that affects growth, would changing PPMR or feeding kernel improve growth? 
+# And how much do you need to change it for some substantial effect to happen?
+
+#look at mortality
+plotScythe(object)
+
+
+
 # trait value picking
 # Trait = eta
 mAmplitude = 0.05
