@@ -31,9 +31,10 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
                     rm = NULL, # rmax if want to set up constant
                     s_max = 1000, # time max of the simulation
                     normalFeeding = T, # if wants to normalise the feeding
+                    tau = 10, # exponent in psi function
+                    interaction = NULL,
                     ...){
-  
-  
+
   # Calculate gamma using equation 2.1 in Andersen & Pedersen 2010
   alpha_e <- sqrt(2*pi) * sigma * beta^(lambda-2) * exp((lambda-2)^2 * sigma^2 / 2) # see A&P 2009
   gamma <- h * f0 / (alpha_e * kappa * (1-f0)) # see A&P 2009 / volumetric search rate
@@ -86,9 +87,8 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
     error = 0 # to trace errors
   )
   # Make the MizerParams
-  
   # MizerParams is in MizerParams-class. Use Source or something because it's freaking long.
-  trait_params <- MizerParams(trait_params_df, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding) 
+  trait_params <- MizerParams(trait_params_df, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction) 
   # Sort out maximum recruitment - see A&P 2009
   # Get max flux at recruitment boundary, R_max
   # R -> | -> g0 N0
@@ -98,9 +98,7 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
   # R_max = N0_max * g0 (g0 is the average growth rate of smallest size, i.e. at f0 = 0.5)
   # N0 given by Appendix A of A&P 2010 - see Ken's email 12/08/13
   # Taken from Ken's code 12/08/13 - equation in paper is wrong!
-  
-  
-  
+
   if (is.null(rm))
   {
     alpha_p <- f0 * h * beta^(2 * n - q - 1) * exp((2 * n * (q - 1) - q^2 + 1) * sigma^2 / 2)

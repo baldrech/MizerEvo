@@ -9,7 +9,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     max_w = max_w_inf * 1.1, #max size bin of both spectrum
                     min_w_pp = 1e-10, #min size bin of background size spectrum
                     no_w_pp = round(no_w)*0.3, # number of size bins background spectrum
-                    w_pp_cutoff = 1e3, # cut of size of the background spectrum
+                    w_pp_cutoff = 1, # cut of size of the background spectrum
                     k0 = 50, # recruitment adjustment parameter
                     n = 0.75, # exponent of maximum intake (scaling of intake)
                     p = 0.75, # exponent of standard metabolism
@@ -37,13 +37,13 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     OptMutant = "M2", # mutation depends on number of eggs or not?
                     Traits = TRUE, # False if one trait only mute per new ecotype
                     r_mult = 1e0, #rmax multiplier to try things
-                    cannibalism = 1, # to tweak cannibalism in the interaction matrix
-                    erepro = 0.1, # reproduction efficiency
+                    erepro = 1, # reproduction efficiency
                     ken = F, # new set of parameters
                     no_run = 1, # number of sim in a row to do
                     effort = 0,
+                    cannibalism = 1, # stay here for now but going away soon
                     initCondition = NULL, # if I want to input previous mizer object as initial condition
-                    initTime = 50, # time for initialisation
+                    initTime = 1, # time for initialisation
                     param = NULL, # can input a param data.frame to do multispecies model
                     print_it = T, # if you want to display messages or not
                     normalFeeding = F, #if want to normalised feeding kernel
@@ -51,10 +51,11 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     save_it = F, # do you want to save?
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
-                    initPool = 10,
+                    initPool = 0,
+                    tau = 10, # exponent in psi function
+                    overlap = 1, # to tweak  interaction matrix
+                    interaction = matrix(overlap,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the overlap param
                     ...){
-  
-  
   if(ken)
   {
     sigma = 1.3
@@ -64,7 +65,6 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     w_pp_cutoff = 1
     #kappa = 1e12
   }
-  
   
   if (is.null(initCondition))
   {
@@ -103,7 +103,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                        erepro = erepro,
                        s_max = s_max,
                        rm = rm,
-                       normalFeeding = normalFeeding) 
+                       normalFeeding = normalFeeding,
+                       tau = tau,
+                       interaction = interaction) 
     
     # Initialisation ---------------------
     # Mutant option
@@ -125,14 +127,13 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     nameList = initBio@params@species_params$ecotype
     
     # Generate a base of phenotypes around each species
-    #steps
-    #1 take the dataframe and add ~10 phen per species
-    
-    for (iSpecies in sort(unique(param@species_params$species)))
+    if (initPool > 1)
     {
-      # Generate phenotypes pool
-      for (iPhenotype in seq(1,initPool))
+      for (iSpecies in sort(unique(param@species_params$species)))
       {
+        # Generate phenotypes pool
+        for (iPhenotype in seq(1, initPool))
+        {
         mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
         while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
         
@@ -143,11 +144,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                  mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
                  mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
                  mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
-<<<<<<< HEAD
-                 },
-=======
                },
->>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
                beta = {
                  # Trait = PPMR
                  sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
@@ -186,45 +183,31 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                {
                  print("Trait specified is not in the list")
                })
-<<<<<<< HEAD
-       
-=======
-        
->>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
+
         # integrate the mutant in the df 
         rownames(mutant) = mutant$ecotype
         param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
         
         #mutant abundance
         n_mutant <- rep(0,no_w)
-<<<<<<< HEAD
-        n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
+        n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes randomly
         #n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
-=======
-        n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
->>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
+
         n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
         n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
         rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
+        
+        # need to change the interaction matrix
+        interaction <- rbind(interaction,interaction[which(rownames(param@interaction) == iSpecies),])
+        interaction <- cbind(interaction,interaction[,which(colnames(param@interaction) == iSpecies)])
+        }
       }
-      
-      
     }
-<<<<<<< HEAD
-
-    #need to update some suff now that there is one more sp
-    no_sp = dim(param@species_params)[1]
-
-    # Recreate the "param" object needed for the projection
-   param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
-=======
-    
     #need to update some suff now that there is one more sp
     no_sp = dim(param@species_params)[1]
     
     # Recreate the "param" object needed for the projection
-    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
->>>>>>> 5803c08700fd40b757b42ac355b03ead309a75f3
+    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
   }
   else 
   {
@@ -233,7 +216,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     #print(Nparam)
-    param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+    param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
     spIndex = as.character(Nparam$ecotype)
     #print(spIndex)
     initCondition@n = initCondition@n[,spIndex,] # take the abundance of only the present species
@@ -255,6 +238,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
   
   #Multiple run --------------------------------
   allRun <- list() # save all the runs
+  interactionSave <- param@interaction # save the interaction matrix at the begining of the simulation
   
   for(j in firstRun:no_run){
     # I am ordering everything by appartition order. To keep that even if I stop and re initialise the sim, I need to change the run number
@@ -285,12 +269,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           mutant <- resident_params # create a perfect copy
           mutant$pop = sim$i_stop + (j-1)*t_max/dt # what i_time does the mutant appear
           mutant$run = j
-          
-          # if (oneSpMode) #special case if only one species as I reach easly the limit of 16 digits names
-          # {do something here} else {
+
           mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
-          # } 
           
           # TRAITS
           switch(Traits,
@@ -355,9 +336,14 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           no_sp = no_sp + 1
           w_inf <- as.numeric(unlist(sim$data@params@species_params["w_inf"])) # need to recreate the vector
           w_mat <-  as.numeric(unlist(sim$data@params@species_params["w_mat"]))
+          interaction <- rbind(interaction,interaction[which(rownames(param@interaction) == resident),])
+          interaction <- cbind(interaction,interaction[,which(colnames(param@interaction) == resident)])
+          
+          interactionSave <- rbind(interactionSave,interactionSave[which(rownames(param@interaction) == resident),])
+          interactionSave <- cbind(interactionSave,interactionSave[,which(colnames(param@interaction) == resident)])
           
           # Recreate the "param" object needed for the projection
-          trait_params <- MizerParams(sim$data@params@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+          trait_params <- MizerParams(sim$data@params@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
           
           # # Use this piece of code if you want to update r_max, as it depends on the number of species. I'm not doing it though, r_max is inherited. 
           # # warning, beta is not updated here
@@ -384,7 +370,6 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         # in the case of constant predation mortality
         if (!is.null(predMort)){
           predMort = matrix(data = predMort[1,], nrow = no_sp, ncol = dim(predMort)[2],byrow = T)
-          #rownames(predMort) = "prey"
         }
         # let's start projecting again
         sim <- project(trait_params, t_max = t_max, dt = dt, i_stop = sim$i_stop, initial_n = n_init, initial_n_pp=sim$n_pp, mu = mu, data = data, extinct = extinct, RMAX=RMAX,OptMutant=OptMutant, M3List = M3List,checkpoint = j, effort = effort, print_it = print_it, predMort = predMort )
@@ -401,7 +386,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         #allData[[length(allData)]] = NULL # delete the last half run
         return(allData)
       }
-      
+
       # now allData has all the successive runs, lets stitch them
       biomass <- stitch(allData) # biomass is a list of n and n_pp
       
@@ -414,30 +399,31 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       
       # then let's clean the sim of the extinct species and initialse next sim
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
-      param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+      
+      # need to change the interaction matrix as well
+      if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
+      
+      param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau,interaction = interaction)
+
       spIndex = as.character(Nparam$ecotype)
       n_init = sim@n[dim(sim@n)[1],spIndex,]
       n_pp_init = sim@n_pp[dim(sim@n)[1],]
-      
-      #cat(sprintf("run %s done\n",j))
-      
     }
     
     else allRun = sim
   }
   # final param counting the extinct species
-  
   if (data==FALSE)
   {
+    
     #for (i in firstRun:length(allRun) ) allRun[[i]]@params@species_params[ , "ecotype"] <- rownames(allRun[[i]]@params@species_params) # save the ecotype (which is the row number)
     a = NULL
     for (i in firstRun:length(allRun) ) a = rbind(a,allRun[[i]]@params@species_params) # bind the different dataframes
     a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
     a <- a[!duplicated(a$ecotype),]
     SummaryParams = a[order(a$pop,a$ecotype),]
-    
     # Update all the other param from the dataframe
-    FinalParam <- MizerParams(SummaryParams, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding)
+    FinalParam <- MizerParams(SummaryParams, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
     
     #return(list(allRun,FinalParam))
     

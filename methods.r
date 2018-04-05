@@ -183,7 +183,7 @@ setGeneric('getPhiPrey', function(object, n, n_pp, opt = T,...)
 #' @rdname getPhiPrey-methods
 #' @aliases getPhiPrey,MizerParams,matrix,numeric-method
 setMethod('getPhiPrey', signature(object='MizerParams', n = 'matrix', n_pp='numeric'),
-          function(object, n, n_pp, opt = T, ...){
+          function(object, n, n_pp, opt = F, ...){
             #        cat("In getPhiPrey\n")
             # Check n dims
             if(dim(n)[1] != dim(object@interaction)[1])

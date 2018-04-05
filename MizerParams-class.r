@@ -354,7 +354,7 @@ setGeneric('MizerParams', function(object, interaction, ...)
 setMethod('MizerParams', signature(object='numeric', interaction='missing'),
           function(object, min_w = 0.001, max_w = 1000, no_w = 100,  min_w_pp = 1e-10, no_w_pp = round(no_w)*0.3, species_names=1:object, gear_names=species_names){
             #args <- list(...)
-            
+
             # Some checks
             if (length(species_names) != object)
               stop("species_names must be the same length as the value of object argument")
@@ -382,6 +382,7 @@ setMethod('MizerParams', signature(object='numeric', interaction='missing'),
             interaction <- array(1, dim=c(object,object), dimnames = list(predator = species_names, prey = species_names))
             vec1 <- as.numeric(rep(NA, no_w_full))
             names(vec1) <- signif(w_full,3)
+            
             
             # Make an empty data.frame for species_params
             # This is just to pass validity check. 
@@ -412,8 +413,8 @@ setMethod('MizerParams', signature(object='numeric', interaction='missing'),
 #' @rdname MizerParams-methods
 #' @aliases MizerParams,data.frame,matrix-method
 setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
-          function(object, interaction,  n = 2/3, p = 0.7, q = 0.8, r_pp = 10, kappa = 1e11, lambda = (2+q-n), w_pp_cutoff = 10, max_w = max(object$w_inf)*1.1, f0 = 0.6, z0pre = 0.6, z0exp = n-1, normalFeeding = F, ...){
-            
+          function(object, interaction,  n = 2/3, p = 0.7, q = 0.8, r_pp = 10, kappa = 1e11, lambda = (2+q-n), w_pp_cutoff = 10, max_w = max(object$w_inf)*1.1, f0 = 0.6, z0pre = 0.6, z0exp = n-1, normalFeeding = F, tau = 10, ...){
+
             # Set default values for column values if missing
             # If no gear_name column in object, then named after species
             if(!("gear" %in% colnames(object)))
@@ -467,14 +468,12 @@ setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
               cat("Note: \tNo ks column in species data frame so using ks = h * 0.2.\n")
               object$ks <- object$h * 0.2
             }
-            
             # Check essential columns: species (name), wInf, wMat, h, gamma,  ks, beta, sigma 
             check_species_params_dataframe(object)
             
             no_sp <- nrow(object)
             # Make an empty object of the right dimensions
             res <- MizerParams(no_sp, species_names=object$ecotype, gear_names=unique(object$gear), max_w=max_w,...)
-            
             # If not w_min column in species_params, set to w_min of community
             # Check min_w argument is not > w_min in species_params
             if (!("w_min" %in% colnames(object)))
@@ -488,6 +487,7 @@ setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
             # Start filling the slots
             res@species_params <- object
             # Check dims of interaction argument - make sure it's right
+
             if (!isTRUE(all.equal(dim(res@interaction), dim(interaction))))
               stop("interaction matrix is not of the right dimensions. Must be number of species x number of species")
             # Check that all values of interaction matrix are 0 - 1. Issue warning if not
@@ -499,11 +499,10 @@ setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
                 
                 warning("Dimnames of interaction matrix do not match the order of species names in the species data.frame. I am now ignoring your dimnames so your interaction matrix may be in the wrong order.")}
             res@interaction[] <- interaction
-            
             # Now fill up the slots using default formulations:
             # psi - allocation to reproduction - from original Setup() function
             res@psi[] <- unlist(tapply(res@w,1:length(res@w),function(wx,w_inf,w_mat,n){
-              ((1 + (wx/(w_mat))^-10)^-1) * (wx/w_inf)^(1-n)},w_inf=object$w_inf,w_mat=object$w_mat,n=n))
+              ((1 + (wx/(w_mat))^-tau)^-1) * (wx/w_inf)^(1-n)},w_inf=object$w_inf,w_mat=object$w_mat,n=n))
             # Set w < 10% of w_mat to 0
             res@psi[unlist(tapply(res@w,1:length(res@w),function(wx,w_mat)wx<(w_mat*0.1)  ,w_mat=object$w_mat))] <- 0
             # Set all w > w_inf to 1 # Check this is right...
