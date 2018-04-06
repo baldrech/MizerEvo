@@ -335,9 +335,9 @@ setMethod('getFeedingLevel', signature(object='MizerSim', n = 'missing', n_pp='m
           })
 
 
-#---
+#----------------------
 # Critical feeding level
-#---
+#------------------------
 
 setGeneric('getCFeedingLevel', function(object, n, n_pp, phi_prey, ...)
   standardGeneric('getCFeedingLevel'))
@@ -518,6 +518,43 @@ setMethod('getM2', signature(object='MizerSim', n = 'missing', n_pp='missing', p
             return(m2_time)
           })
 
+
+#---------------------
+# starvation mortality
+#-----------------------
+
+setGeneric('getSmort', function(object, n, n_pp, e,...)
+  standardGeneric('getSmort'))
+
+#' @rdname getSmort-methods
+#' @aliases getSmort,MizerParams,matrix,numeric,array-method
+setMethod('getSmort', signature(object='MizerParams', n = 'matrix', n_pp='numeric', e = 'matrix'),
+          function(object, n, n_pp, e, ...){
+            mu_S <- e - object@std_metab - object@activity
+            mu_S[mu_S<0]<- t(apply(mu_S,1,function(x,y = object@dw){x[which(x<0)]/y[which(x<0)]}))
+            mu_S[mu_S>0] <- 0
+            return(mu_S)
+          })
+#' @rdname getSmort-methods
+#' @aliases getSmort,MizerParams,matrix,numeric,missing-method
+setMethod('getSmort', signature(object='MizerParams', n = 'matrix', n_pp='numeric', e = 'missing'),
+          function(object, n, n_pp, ...){
+            e <- getE(object,n=n,n_pp=n_pp)
+            mu_S <- getSmort(object,n=n,n_pp=n_pp, e=e)
+            return(mu_S)
+          })
+#' @rdname getSmort-methods
+#' @aliases getSmort,MizerSim,missing,missing,missing-method
+setMethod('getSmort', signature(object='MizerSim', n = 'missing', n_pp='missing', e = 'missing'),
+          function(object, time_range=dimnames(object@n)$time, drop=TRUE, ...){
+            time_elements <- get_time_elements(object,time_range)
+            e_time <- aaply(which(time_elements), 1, function(x){
+              n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+              dimnames(n) <- dimnames(object@n)[2:3]
+              e <- getE(object@params, n=n, n_pp = object@n_pp[x,])
+              return(e)}, .drop=drop)
+            return(e_time)
+          })
 
 #----------------------------------------------------------------
 # M2 background
@@ -793,7 +830,8 @@ setMethod('getZ', signature(object='MizerParams', n = 'matrix', n_pp = 'numeric'
               stop("m2 argument must have dimensions: no. species (",nrow(object@species_params),") x no. size bins (",length(object@w),")")
             }
             f_mort <- getFMort(object, effort = effort)
-            z = sweep(m2 + f_mort,1,object@species_params$z0,"+")
+            mu_S <- getSmort(object, n=n, n_pp = n_pp)
+            z = sweep(m2- mu_S + f_mort,1,object@species_params$z0,"+")
             return(z)
           })
 
