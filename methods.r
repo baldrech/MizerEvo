@@ -556,6 +556,42 @@ setMethod('getSmort', signature(object='MizerSim', n = 'missing', n_pp='missing'
             return(e_time)
           })
 
+
+#---------------------
+# senescence mortality
+#-----------------------
+
+setGeneric('getOmort', function(object,...)
+  standardGeneric('getOmort'))
+
+#' @rdname getOmort-methods
+#' @aliases getOmort,MizerParams,matrix,numeric,array-method
+setMethod('getOmort', signature(object='MizerParams'),
+          function(object, ...){
+            
+           
+              size = object@w
+              param <- object@species_params
+              y <- 0.2*exp(0.5* seq(1,length(size)))
+              Omort <- matrix(0,ncol=length(size),nrow=dim(param)[1],dimnames = list(param$ecotype,size))
+              for (i in 1:dim(Omort)[1])
+              {
+                Omort[i,] <- c(rep(0,(which(size>=param$w_mat[i])[1]-1)),y)[1:length(size)] # start the exponential at the first size class after w_mat
+                Omort[i,which(size>=param$w_inf[i])] <- 0
+              }
+  
+            return(Omort)
+          })
+
+#' @rdname getOmort-methods
+#' @aliases getOmort,MizerSim,missing,missing,missing-method
+setMethod('getOmort', signature(object='MizerSim'),
+          function(object, ...){
+
+            Omort <- getOmort(object@params)
+            return(Omort)
+          })
+
 #----------------------------------------------------------------
 # M2 background
 #----------------------------------------------------------------
@@ -831,7 +867,9 @@ setMethod('getZ', signature(object='MizerParams', n = 'matrix', n_pp = 'numeric'
             }
             f_mort <- getFMort(object, effort = effort)
             mu_S <- getSmort(object, n=n, n_pp = n_pp)
-            z = sweep(m2- mu_S + f_mort,1,object@species_params$z0,"+")
+            mu_O <- getOmort(object)
+            z = sweep(m2- mu_S + mu_O + f_mort,1,object@species_params$z0,"+")
+            #z = sweep(m2- mu_S + f_mort,1,object@species_params$z0,"+")
             return(z)
           })
 
