@@ -196,83 +196,76 @@ plotSummary <- function(x, ...){
 
 # plot biomass
 
-plotDynamics <- function(object, phenotype = TRUE, bloodline = NULL, light = FALSE, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png"){
+plotDynamics <- function(object, time_range = c(min(dimnames(object@n)$time),max(dimnames(object@n)$time)), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
-  biomass <- getBiomass(object) # n * w * dw and sum by species
+  # get the phenotype biomass through time (need at least 2 time steps for now)
+  biomass <- getBiomass(object)
+  time_elements <- get_time_elements(object,time_range)
+  biomass <- biomass[time_elements,]
   
-  SpIdx = NULL # getting rid of the species that went extinct at the beginning 
+  # getting rid of the species that went extinct during the initialisation
+  SpIdx = NULL 
   for (i in unique(object@params@species_params$species))
     if (sum(biomass[,i]) != 0 & dim(object@params@species_params[object@params@species_params$species == i,])[1] != 1) 
       SpIdx = c(SpIdx,i)
   
-  biomassTot = NULL
+  # sum the phenotype biomass per species
+  biomassSp = NULL
   biomassTemp = biomass
   colnames(biomassTemp) = object@params@species_params$species
   for (i in SpIdx)
   {
-    biomassSp = biomassTemp[,which(colnames(biomassTemp) == i)]
-    biomassSp = apply(biomassSp,1,sum)
-    biomassTot = cbind(biomassTot,biomassSp)
+    biomassPhen = biomassTemp[,which(colnames(biomassTemp) == i)]
+    if(!is.null(dim(biomassPhen))) biomassPhen = apply(biomassPhen,1,sum)
+    biomassSp = cbind(biomassSp,biomassPhen)
   }
-  colnames(biomassTot) = SpIdx
+  colnames(biomassSp) = SpIdx
   
-  # biomassTot is the biomass of species
-  # biomass is the biomass of phenotypes
-  plotBiom <- function(x,light)
+  plotBiom <- function(x)
   {
     Biom <- melt(x) # melt for ggplot
-    names(Biom) = list("time","sp","value")
-    # Due to log10, need to set a minimum value, seems like a feature in ggplot
-    min_value <- 1e-300
+    colnames(Biom) = c("time","phen","value")
+    # Due to log10, need to set a minimum value
+    min_value <- 1e-30
     Biom <- Biom[Biom$value >= min_value,]
-    # take the first digit of the species column and put it in a new column
-    Biom$bloodline = sapply(Biom[,2], function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
-    if(light) Biom= Biom[seq(1,dim(Biom)[1],2),] # if the data is too heavy and it takes to much time
+    # create a species column
+    Biom$sp = sapply(Biom$phen, function(x) as.numeric(unlist(strsplit(as.character(x), "")))[1])
     return(Biom)
   }
   
-  BiomPhen = NULL
-  if (phenotype) BiomPhen <- plotBiom(x = biomass,light =light)
-  BiomSp <- plotBiom(biomassTot,light)
+  if (phenotype) BiomPhen <- plotBiom(biomass)
+  BiomSp <- plotBiom(biomassSp)
   
+  # multiple possibilities: which species? with or without phenotypes?
+  if (!is.null(species)) BiomSp <- BiomSp[BiomSp$sp == species, ]
   
-  # colourCount = length(unique(Biom$sp))
-  # getPalette = colorRampPalette(brewer.pal(9, "Set1"))# increase the number of colors used
-  
-  if (is.null(bloodline))
+  if (phenotype)
   {
-    p <-
-      ggplot(BiomSp) +
-      geom_line(aes(x = time, y = value, colour = as.factor(bloodline), group = sp), size = 1.2) +
-      geom_line(data = BiomPhen, aes(x = time, y = value, colour = as.factor(bloodline), group = sp), alpha = 0.2) +
-      scale_y_log10(name = "Biomass in g.m^-3", limits = c(1e-11, NA), breaks = c(1 %o% 10^(-11:-1))) +
+    if (!is.null(species)) BiomPhen <- BiomPhen[BiomPhen$sp == species, ]
+    p <- ggplot(BiomSp) +
+      geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp), size = 1.2) +
+      geom_line(data = BiomPhen, aes(x = time, y = value, colour = as.factor(sp), group = phen), alpha = 0.2) +
+      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(-30:4))) +
       scale_x_continuous(name = "Time in years") +
-      #geom_hline(yintercept = 1e-11) +
-      #geom_text(aes(0,1e-11,label = "Extinction threshold", vjust = 1, hjust = -0.15), size = 2.5) +
       labs(color='Species') +
-      theme(legend.key = element_rect(fill = "white"))+
-      theme_bw()+
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
       scale_colour_manual(values=cbPalette)+ # colorblind
-      #scale_color_grey(name = "Species")+ # grey
-      ggtitle("Community biomass")
-  }
-  
-  else 
-  {
-    Sbm= Sbm[Sbm$bloodline == bloodline,]
+      ggtitle("Community biomass") 
     
-    
-    p <-
-      ggplot(Sbm) +
-      geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp)) +#, linetype = sp)) +
-      scale_y_log10(name = "Biomass in g.m^-3", limits = c(1e-11, NA), breaks = c(1 %o% 10^(-11:-1))) +
+  } else {
+    p <- ggplot(BiomSp) +
+      geom_line(aes(x = time, y = value, colour = as.factor(sp), group = sp), size = 1.2) +
+      scale_y_log10(name = "Biomass in g.m^-3", limits = ylimit, breaks = c(1 %o% 10^(-30:4))) +
       scale_x_continuous(name = "Time in years") +
       labs(color='Species') +
-      theme(legend.key = element_rect(fill = "white"))+
-      theme_bw()+
-      scale_color_grey()+
-      ggtitle("Community biomass")
+      theme(panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"),
+            legend.key = element_rect(fill = "white"))+
+      scale_colour_manual(values=cbPalette)+ # colorblind
+      ggtitle("Community biomass") 
   }
   
   if(save_it) ggsave(plot = p, filename = nameSave)
@@ -569,10 +562,10 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
       geom_line(aes(x=w, y = value, colour = as.factor(Species), group = Species)) + 
       geom_line(data = plot_datPkt, aes(x = w, y = value, linetype = Species), size = 1.5) +
       scale_x_log10(name = "Size in g", breaks = c(1 %o% 10^(-6:5)))+
-      scale_y_log10(name = "Abundance density in individuals.m^-3", limits = c(1e-8,1e4)) +
+      scale_y_log10(name = "Abundance density in individuals.m^-3") + #, limits = c(1e-6,1e4)) +
       theme(panel.background = element_blank(),legend.key = element_rect(fill = "white"))+
       theme_bw()+
-      scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
+      #scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
       #scale_color_grey(name = "Species")+ # grey
       ggtitle("Size spectrum")
   }
@@ -1141,19 +1134,20 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
   }
   z = z_sp
   
-  name = paste("Predation Mortality at time",whatTime,sep=" ")
+  name = paste("Total Mortality at time",whatTime,sep=" ")
   
   plot_dat <- data.frame(value = c(z), Species = dimnames(z)[[1]], w = rep(object@params@w, each=length(dimnames(z)[[1]])))
   
   p <- ggplot(plot_dat) + 
     geom_line(aes(x=w, y = value, colour = Species)) + 
-    scale_x_continuous(name = "Size", trans="log10") + 
-    scale_y_continuous(name = "M2", lim=c(0,max(plot_dat$value))) +
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
+    scale_y_continuous(name = "Mortality", lim=c(0,max(plot_dat$value))) +
+    theme(legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
     ggtitle(name)
   
-  if (print_it) print(p)
-  if(returnData) return(plot_dat) else return(p)
-  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 

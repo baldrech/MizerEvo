@@ -529,32 +529,31 @@ setMethod('MizerParams', signature(object='data.frame', interaction='matrix'),
             res@srr <- function(rdi, species_params)
             {
               rdiNormal = vector(mode = "numeric", length = length(rdi))
-              # I am getting rid of the species which went instinct at the begining not sure it is usefull here but Ill let it for now
-              # SpIdx = NULL
-              # for (i in unique(species_params$species))
-              #   if (sum(sim@n[, i, ]) != 0)
-              #     SpIdx = c(SpIdx, i)
-              
+              names(rdi) <- species_params$species
               for (i in unique(species_params$species))
               {
                 rdiSp = rdi # save to manip
-                rdiSp[which(rownames(rdi) != i)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
+                rdiSp[which(names(rdi) != i)] = 0 # make everything but the targeted species to go 0 to have correct normalisation
                 
-                for (i in 1:length(rdiSp)) # in case of NA
-                  if (is.na(rdiSp[i]) == TRUE) 
+                for (i in 1:length(rdiSp))
+                  # in case of NA
+                  if (is.na(rdiSp[i]) == TRUE)
                     rdiSp[i] = 1e-30
                 
-                if (sum(rdiSp) != 0) rdiNormal = rdiNormal + rdiSp / sum(rdiSp)
+                if (sum(rdiSp) != 0)
+                  rdiNormal = rdiNormal + rdiSp / sum(rdiSp)
               }
               r_maxN = species_params$r_max * rdiNormal
+              
               for (i in 1:length(r_maxN))
+                # do not want to divide by 0
                 if (r_maxN[i] == 0)
                   r_maxN[i] = species_params$r_max[i]
               
               return(r_maxN * rdi / (r_maxN + rdi))
               #return(species_params$r_max * rdi / (species_params$r_max+rdi))
             }
-            
+    
             # Set fishing parameters: selectivity and catchability
             # At the moment, each species is only caught by 1 gear so in species_params there are the columns: gear_name and sel_func
             # BEWARE! This routine assumes that each species has only one gear operating on it

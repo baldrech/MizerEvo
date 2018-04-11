@@ -41,10 +41,10 @@ biom <-function(object,phenotype=T)
 }
 
 # function that takes the output of the model and make it usable for plotting and shit
-finalTouch <- function(result, dt = 0.1, comments = T)
+finalTouch <- function(result, dt = 0.1, print_it = T)
 {
   ## processing data
-  if (comments) cat("Data handling\n")
+  if (print_it) cat("Data handling\n")
   # a result will be a list of simulations (number of runs) and the ID card of the ecosystem,
   
   gc()

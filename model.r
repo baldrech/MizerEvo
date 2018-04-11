@@ -52,7 +52,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     path_to_save = NULL, # where?
                     predMort = NULL, # if want to replace dynamics m2 by constant one
                     initPool = 0,
-                    tau = 10, # exponent in psi function
+                    tau = 7, # exponent in psi function
                     overlap = 1, # to tweak  interaction matrix
                     interaction = matrix(overlap,nrow=no_sp, ncol=no_sp), # default interaction matrix, controlled by the overlap param
                     ...){
@@ -127,7 +127,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     nameList = initBio@params@species_params$ecotype
     
     # Generate a base of phenotypes around each species
-    if (initPool > 1)
+    if (initPool > 0)
     {
       for (iSpecies in sort(unique(param@species_params$species)))
       {
@@ -138,7 +138,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
         
         switch(Traits,
-               size = {o
+               size = {
                  # Trait = asymptotic size
                  sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
                  mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
@@ -336,12 +336,12 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           no_sp = no_sp + 1
           w_inf <- as.numeric(unlist(sim$data@params@species_params["w_inf"])) # need to recreate the vector
           w_mat <-  as.numeric(unlist(sim$data@params@species_params["w_mat"]))
-          interaction <- rbind(interaction,interaction[which(rownames(param@interaction) == resident),])
-          interaction <- cbind(interaction,interaction[,which(colnames(param@interaction) == resident)])
-          
-          interactionSave <- rbind(interactionSave,interactionSave[which(rownames(param@interaction) == resident),])
-          interactionSave <- cbind(interactionSave,interactionSave[,which(colnames(param@interaction) == resident)])
-          
+          interaction <- rbind(interaction,interaction[which(rownames(sim$data@params@interaction) == resident),])
+          interaction <- cbind(interaction,interaction[,which(colnames(sim$data@params@interaction) == resident)])
+
+          interactionSave <- rbind(interactionSave,interactionSave[which(rownames(sim$data@params@interaction) == resident),])
+          interactionSave <- cbind(interactionSave,interactionSave[,which(colnames(sim$data@params@interaction) == resident)])
+
           # Recreate the "param" object needed for the projection
           trait_params <- MizerParams(sim$data@params@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
           
@@ -428,7 +428,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     #return(list(allRun,FinalParam))
     
     # handle and save the final data
-    sim = finalTouch(list(allRun,FinalParam))
+    sim = finalTouch(list(allRun,FinalParam),print_it = print_it)
     gc()
     simOpt = superOpt(sim) 
     
