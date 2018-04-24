@@ -29,7 +29,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                     gear_names = "knife_edge_gear",
                     t_max = 100,
                     dt = 0.1,
-                    mu = 5,
+                    mu = 1,
                     data = FALSE, # this condition to choose between retruning the normal run or other type of data in case I'm exploring stuff, no mutants allowed for now
                     extinct = TRUE, # extinction option
                     RMAX = TRUE, # enable egg density dependence
@@ -207,7 +207,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     no_sp = dim(param@species_params)[1]
     
     # Recreate the "param" object needed for the projection
-    param <- MizerParams(param@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
+    param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
   }
   else 
   {
@@ -216,7 +216,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     #print(Nparam)
-    param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
+    param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
     spIndex = as.character(Nparam$ecotype)
     #print(spIndex)
     initCondition@n = initCondition@n[,spIndex,] # take the abundance of only the present species
@@ -266,11 +266,18 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         {
           resident = sim$resident[i] # this is the parent phenotype
           resident_params = sim$data@params@species_params[sim$data@params@species_params$ecotype == resident,]
+          if(!is.data.frame(resident_params) || length(resident_params) != 26) 
+          {print("error in resident")
+            print(resident_params)}
           mutant <- resident_params # create a perfect copy
           mutant$pop = sim$i_stop + (j-1)*t_max/dt # what i_time does the mutant appear
           mutant$run = j
 
           mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
+          if(!is.numeric(mutant$ecotype))
+          {
+            cat(sprintf("something is wrong with the mutant name: %i", mutant$ecotype))
+          }
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
           
           # TRAITS
@@ -305,8 +312,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                    # Trait = eta
                    sd = as.numeric(mAmplitude *  resident_params["eta"]) # standard deviation
                    mutant["eta"] <- resident_params["eta"] + rnorm(1, 0, sd) # change a bit eta
+                   if (mutant["eta"] >= 1) mutant["eta"] <- 0.95 # because yes it does happen
                    mutant["w_mat"] <- mutant["w_inf"] * mutant["eta"] # update
-                   #cat(sprintf("Its wmat/winf ratio mutes slightly.\n"))
+                   cat(sprintf("Its w_mat is: %g\n",mutant["w_mat"]))
                  },
                  all = {
                    # Trait = asymptotic size
@@ -336,14 +344,33 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           no_sp = no_sp + 1
           w_inf <- as.numeric(unlist(sim$data@params@species_params["w_inf"])) # need to recreate the vector
           w_mat <-  as.numeric(unlist(sim$data@params@species_params["w_mat"]))
+          
           interaction <- rbind(interaction,interaction[which(rownames(sim$data@params@interaction) == resident),])
           interaction <- cbind(interaction,interaction[,which(colnames(sim$data@params@interaction) == resident)])
+          rownames(interaction) <- sim$data@params@species_params$ecotype
+          colnames(interaction) <- rownames(interaction)
 
           interactionSave <- rbind(interactionSave,interactionSave[which(rownames(sim$data@params@interaction) == resident),])
           interactionSave <- cbind(interactionSave,interactionSave[,which(colnames(sim$data@params@interaction) == resident)])
+          rownames(interactionSave)[length(rownames(interactionSave))] <- mutant$ecotype
+          colnames(interactionSave)[length(colnames(interactionSave))] <- mutant$ecotype
+
+          if(sum(colnames(interaction) %in% rownames(interaction)) != dim(interaction)[1])
+          {
+            cat(sprintf("interaction names are wrong\n"))
+            print(colnames(interaction))
+            print(rownames(interaction))
+          }
+          
+          if(sum(colnames(interaction) %in% colnames(interactionSave)) != dim(interaction)[1])
+          {
+            cat(sprintf("something happened\n"))
+            print(colnames(interaction))
+            print(colnames(interactionSave))
+          }
 
           # Recreate the "param" object needed for the projection
-          trait_params <- MizerParams(sim$data@params@species_params, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
+          trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
           
           # # Use this piece of code if you want to update r_max, as it depends on the number of species. I'm not doing it though, r_max is inherited. 
           # # warning, beta is not updated here
@@ -403,7 +430,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       # need to change the interaction matrix as well
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
       
-      param <- MizerParams(Nparam, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau,interaction = interaction)
+      param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau,interaction = interaction)
 
       spIndex = as.character(Nparam$ecotype)
       n_init = sim@n[dim(sim@n)[1],spIndex,]
@@ -423,7 +450,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     a <- a[!duplicated(a$ecotype),]
     SummaryParams = a[order(a$pop,a$ecotype),]
     # Update all the other param from the dataframe
-    FinalParam <- MizerParams(SummaryParams, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
+    FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
     
     #return(list(allRun,FinalParam))
     
