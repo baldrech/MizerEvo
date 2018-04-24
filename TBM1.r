@@ -75,6 +75,7 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
     eta = eta,
     z0 = z0pre * w_inf^(n-1), # background mortality
     alpha = alpha,
+    w_min = min_w,
     sel_func = "knife_edge",
     knife_edge_size = knife_edge_size,
     gear = gear_names,
@@ -88,7 +89,7 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
   )
   # Make the MizerParams
   # MizerParams is in MizerParams-class. Use Source or something because it's freaking long.
-  trait_params <- MizerParams(trait_params_df, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction) 
+  trait_params <- MizerParams(trait_params_df, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction) 
   # Sort out maximum recruitment - see A&P 2009
   # Get max flux at recruitment boundary, R_max
   # R -> | -> g0 N0
@@ -531,60 +532,23 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     mute = FALSE
     multiple = FALSE
     switch(OptMutant,
-           M1 = {
-             i = 1
-             while (i <= nrow(sim@params@species_params) &
-                    mute == FALSE)
-               # leave the loop if all the species have been checked or a mutation happened
-             {
-               egg = rdi[i] # number of offsprings of species i
-               
-               mutation = egg * mu # probability of mutant
-               
-               if (mutation >= sample(1:10000, 1))
-                 # the rate is a % of mutation with 3 decimals. mutation = 152 means 1.52% chance of getting a mutant
-               {
-                 resident <-
-                   rownames(sim@params@species_params)[i] # I select the resident having the mutant egg
-                 if (sim@params@species_params$extinct[i] == FALSE)
-                   # redondant I think as rdi of extinct species = 0 anyway
-                 {
-                   mute = TRUE # if want to check if the resident is still alive but can't do it before because of rdi[i]
-                   #print(mutation)
-                 }
-               }
-               i = i + 1
-             }
-           },
-           M2 = {
+           
+           M2 = { # default mutation rate, with one mutant max per time step, randomly drawn from every species (not phenoytpes)
              if (mu >= sample(1:1000, 1))
              {
-               #print("selection of parent")
                residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
-               #print(residentPool)
                # to block exponential evolution of species, I'm first picking a lineage randomly and then an ecotype in this lineage
                lineagePool = unique(residentPool$species)
-               #print(lineagePool)
+
+               if (length(lineagePool) == 1) lineage = lineagePool else lineage = sample(lineagePool, 1)
                
-               if (length(lineagePool) == 1) lineage = lineagePool
-               
-               else lineage = sample(lineagePool, 1)
-               
-               #print(lineage)
                residentPool=residentPool[residentPool$species == lineage,]
-               #print(residentPool)
                resident <- sample(1:nrow(residentPool), 1) # this is the rownumber of the selected resident
-               #print(resident)
-               
-               resident <- residentPool$ecotype[resident]
-               #print(resident)
-               #rownames(residentPool)[resident] # this is his name now
-               
-               #print("parent selected")
-               mute = TRUE
+               resident <- residentPool$ecotype[resident] # this is his name now
+                mute = TRUE
              }
            },
-           M3 = {
+           M3 = { # if the user define a specific time to mutate, mainly for debugging
              for (i in 1:length(M3List[[1]]))
              {
                if (M3List[[1]][i] == i_time)
@@ -614,7 +578,7 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
                  mute = TRUE
                }}
            },
-           M4 = {
+           M4 = { # multiple residents at one time, not sure if it still works
              residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,]
              resident = NULL
              for (i in 1:nrow(residentPool))
@@ -627,6 +591,25 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
                if (length(resident) >1) multiple = TRUE
              }
            },
+           M5 = { # pick only one mutant but give a chance to every species
+             residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+             speciesPool = unique(residentPool$species) # which species are available to produce new phenotypes
+             challengers <- NULL
+             for (iSpecies in speciesPool) # do the picking for every species
+             {
+               if (mu >= sample(1:1000, 1)) # if mutant happens
+               {
+                 resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
+                 mute = TRUE
+                 challengers <- c(challengers,resident)
+               } 
+             }
+             if (length(challengers) >1){
+             cat(sprintf("Possible new phenotypes\n"))
+             print(challengers)
+             resident <- sample(challengers,1) # select only one to mutate (I know I'm lazy)
+             } else if (length(challengers == 1)) resident <- challengers
+             },
            {})
     
     
@@ -642,6 +625,8 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
       i_stop = i_time  # to conserve the time of the projection to restart later
       stopList <- list(sim_stop, i_stop, resident,n,n_pp)
       names(stopList) <- c("data", "i_stop", "resident","n","n_pp")
+      
+      if(length(stopList)!=5) cat(sprintf("error in stop list, length is %i\n",length(stopList)))
       # now I need to leave the projection and keep resident, i_stop and sim_stop
       if (multiple == FALSE)
       {

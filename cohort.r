@@ -1,86 +1,33 @@
 # cohort plot -------------
 # I want the spawn through life -> last value of total cohortR
-
-sim <- get(load("Test/init/run2/run.Rdata"))
-
-dt=0.1
-effort=0
+plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = 1, effort = 0, cohortSpan = seq(max(dim(object@n)[1])-30,max(dim(object@n)[1]),2),
+                       print_it = T, returnData = F, save_it = F, nameSave = paste("CohortSpecies",iSpecies,".png",sep=""))
+{
+  # setting up some parameters
 sex_ratio = 0.5
-
-cohortSpan <- seq(0,4,1)
-firstCohort = 200 # t_start + max(cohortSpan) + T + 1 < dim(sim@n)[1]
-no_sp = dim(sim@params@species_params)[1]
-PhenIdx <- which(sim@params@species_params$species == 2)#[1] # select who to track
-PhenIdx <- seq(1,no_sp)
+T = t_steps/dt; # number of time steps you want to follow cohort for
+no_sp <- dim(sim@params@species_params)[1]
+PhenIdx <- which(sim@params@species_params$species == iSpecies) # select who to track, not the name of the species but their position in the dataframe
+PhenName<- sim@params@species_params$ecotype[PhenIdx] # this is their name
 no_Phen = length(PhenIdx)
 fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenIdx,cohortSpan)) #collect the total spawn per time (start of cohort) per species
 names(dimnames(fitness)) <- list("species","cohort")
 
-
-for (cohortGen in cohortSpan)
+for (t_start in cohortSpan)
 {
-  #t_start = cohortGen
-  # get rid of the non-existing species at that time
-  # SpIdx <- which(sim@n[t_start,PhenIdx,1]>0)
-  # a <- as.numeric(names(SpIdx))
-  # SpIdx <- a
-  # sim@n <- simulation@n[,SpIdx,]
-  # no_sp = dim(sim@n)[2]
+  cat(sprintf("Cohort number %g\n",t_start))
   
-  #temp
-
-  
-  T = 15/dt; # number of time steps you want to follow cohort for
-  #t_start = laststep - T; # setting the start time for tracking the cohort
-  t_start = firstCohort + cohortGen
-  cat(sprintf("cohort is %g\n",t_start))
-  
+  # Initialising matrixes
   cohortW = array(0, c(no_sp, T+1)); # row vector for following cohort weight
   cohortS = array(0, c(no_sp, T+1)); # vector for cohort survival
   cohortR = array(0, c(no_sp, T+1)); # vector for cohort spawning
   cohortR_sol = array(0, c(no_sp, T+1)); # vector for cohort spawn at size
-  
-  # NEWBORNS OVER LIFETIME
   cohortW[,1] = sim@params@w[1]; # log weight initially (newborn)
   cohortS[,1] = sim@n[t_start,,1]; # initial population in spectrum
-  
-  # need to check which growth and mortality values I get when I look at all the species, even the ones that have not appear yet
-  # yo <- set_TBM(no_sp = 6, eta = 0.5, min_w_inf = 10, 
-  #               max_w_inf = 1e4, RMAX = T, cannibalism = 0.5, 
-  #               erepro = 1, 
-  #               h = 85, w_pp_cutoff = 1e3, ks = 10, sigma = 1, f0 = 0.5, 
-  #               initTime = 1, effort = 0, normalFeeding = F)
-
-  # for (q in PhenIdx){ # delete this loop and do all the phenotypes at once
-  #   cat(sprintf("q is %g\n",q))
-  #   for (t in seq(1,T)){ # within time period you're interested in
-  #     #cat(sprintf("t is %g\n",t))
-  #     
-  #     cohortWprev = max(which(cohortW[q,t] - sim@params@w >= 0)) # weight bin of cohort from last time step 
-  #     #print(cohortWprev)
-  #     growth = getEGrowth(sim@params,n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,])
-  #     cohortW[q,t+1] = cohortW[q,t]+dt*growth[q,cohortWprev] # using growth rate in that bin to update to cohortW(t-t_start+1)
-  #     z = getZ(object = sim@params, n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,], effort = effort)
-  #     cohortS[q,t+1] = cohortS[q,t]*exp(-dt*z[q,cohortWprev]) # updating amount surviving using death rate
-  #     
-  #     # need to prepare n for no NAN
-  #     n = sim@n[t_start+t-1,,]*cohortS[,t]/cohortS[,1]
-  #     n[!is.finite(n)] <- 0#1e-30
-  #     
-  #     e_spawning <- getESpawning(object = sim@params, n = n,n_pp = sim@n_pp[t_start+t-1,])
-  #     e_spawning_pop <- apply((e_spawning*n),1,"*",sim@params@dw)
-  #     rdi <- sex_ratio*(e_spawning_pop * sim@params@species_params$erepro)/sim@params@w[sim@params@species_params$w_min_idx] # need to get RDI that way so it is not summed up
-  #     cohortR[q,t+1] = cohortR[q,t] + dt*rdi[cohortWprev,q]  #[q,cohortWprev] #bug here
-  #     #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
-  #   }
-  #   fitness[which(dimnames(fitness)[[1]] == q),which(cohortGen==cohortSpan)] = cohortR[q,T]
-  # }
-
 
     for (t in seq(1,T)){ # within time period you're interested in
-
       # vector of the previous size bin for every phenotypes
-      cohortWprev = unlist(lapply( lapply(cohortW[PhenIdx,t], FUN = function(x) x-sim@params@w), FUN = function(x) max(which(x>= 0))))
+      cohortWprev = unlist(lapply(lapply(cohortW[PhenIdx,t], FUN = function(x) x-sim@params@w), FUN = function(x) max(which(x>= 0)))) # yolo
       # growth matrix
       growth = getEGrowth(sim@params,n = sim@n[t_start+t-1,,],n_pp = sim@n_pp[t_start+t-1,])
       # update the new size bin with the growth
@@ -100,50 +47,29 @@ for (cohortGen in cohortSpan)
       cohortR[PhenIdx,t+1] = cohortR[PhenIdx,t] + dt*diag(rdi[cohortWprev,PhenIdx])
       #cohortR_sol[q,t+1] = dt*rdi[cohortWprev,q] # do not sum the spawn so it is the spawn at time
     }
-      fitness[which(dimnames(fitness)[[1]] == PhenIdx),which(cohortGen==cohortSpan)] = cohortR[PhenIdx,T]
-  
-
-  
-  
-  
+      fitness[which(dimnames(fitness)[[1]] == PhenIdx),which(t_start==cohortSpan)] = cohortR[PhenIdx,T] # fitness is the total spawn within the time period
 }
-
-# need to take the average fitness
-#dimnames(fitness)$species <- do.call(cbind,lapply(as.numeric(strsplit(as.character(dimnames(fitness)$species), "")), function (x) x[1])) # the name of the phenotypes become their first digit
-# dimnames(fitness)$species <- sim@params@species_params$species #or I can do that ^^
-# SpIdx <- unique(sim@params@species_params$species)
-# 
-# newFit <- array(0,c(length(SpIdx), length(cohortSpan)), dimnames = list(SpIdx,cohortSpan))
-# for (i in SpIdx)
-# {
-#   lol <- fitness[which(dimnames(fitness)$species == as.character(SpIdx[i])),]
-#   lol[lol==0] <- NA
-#   newFit[i,] <- apply(lol,2,mean,na.rm=T)
-# }
-# 
-# newFit[!is.finite(newFit)] <- 0
-
-#cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
-
-
-#plot_datF <- melt(fitness)
-# plot_datF <- melt(newFit)
-# colnames(plot_datF) <- list("species","cohort","fitness")
-
+rownames(fitness) <- PhenName # put the right name
+rownames(fitness) <- round(sim@params@species_params$w_mat[PhenIdx],2) # put the maturation size instead of the names
+colnames(fitness) <- cohortSpan
+fitness <- fitness[!rowSums(fitness) == 0,] # get rid of phenotypes not appeared yet
 
 plot_dat<- melt(fitness)
 
-pF <- ggplot(plot_dat) +
-  geom_line(aes(x=cohort,y=value,color = as.factor(species)),size =2) +
-  scale_x_continuous(name = "Cohorts") +
+p <- ggplot(plot_dat) +
+  geom_line(aes(x=cohort,y=value,color = as.factor(species)),size =1) +
+  scale_x_continuous(name = "Cohorts", breaks = as.numeric(colnames(fitness))) +
   scale_y_continuous(name = "Fitness", trans = "log10")+
-  #scale_colour_manual(values=cbPalette)+ # colorblind
-  theme(legend.title=element_text(),panel.background = element_rect(fill = "white", color = "black"),
-        panel.grid.minor = element_line(colour = "grey92"),legend.position="none", 
-        legend.justification=c(1,1),legend.key = element_rect(fill = "white"))+
+  labs(color = "Phenotypes") +
+  theme(legend.title=element_text(),
+        panel.background = element_rect(fill = "white", color = "black"),
+        panel.grid.minor = element_line(colour = "grey92"), 
+        legend.justification=c(1,1),
+        legend.key = element_rect(fill = "white"))+
   ggtitle(NULL)
 
-#pB <- plotBiomass(sim,start_time = 10.1,end_time = 300.1)
-pB <- plotDynamics(sim)
+if(save_it) ggsave(plot = p, filename = nameSave)
 
+if (returnData) return(fitness) else if(print_it) return(p)
+}
 
