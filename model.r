@@ -211,12 +211,14 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
   }
   else 
   {
-    Nparam = initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct to start the sim
+    Nparam <- initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct at start the sim
+    Ninter <- initCondition@params@interaction[which(rownames(initCondition@params@interaction) %in% Nparam$ecotype),which(colnames(initCondition@params@interaction) %in% Nparam$ecotype)] # take the interaciton matrix of non-extinct species
+ 
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
     #print(Nparam)
-    param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
+    param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = Ninter)
     spIndex = as.character(Nparam$ecotype)
     #print(spIndex)
     initCondition@n = initCondition@n[,spIndex,] # take the abundance of only the present species
