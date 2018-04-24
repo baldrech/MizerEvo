@@ -29,28 +29,25 @@ source("utility.r") # helpful functions
 # a@params@species_params$r_max
 
 # multi species simulations ----------
-file_name = "/ParamRmd"
+file_name = "/NewTest"
 
 # PARAMETERS
 # physio
 no_sp = 9
-eta = 0.5
 min_w_inf <- 10
 max_w_inf <- 1e5
 RMAX = T
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
-# fisheries
-gear_names <- rep("FishingStuff", no_sp)
-knife_edges <- w_inf * eta 
+
 
 # other
 t_max = 50
-no_run = 20
-no_sim = 1
+no_run = 40
+no_sim = 5
 
 # initialisation phase (4000 yr)
-for (i in 1:no_sim)
+for (i in 2:no_sim)
 {
   # parameters worth checking: h, ks, z0pre, sigma, beta, f0, erepro, w_pp_cutoff
   # defaults
@@ -63,43 +60,45 @@ for (i in 1:no_sim)
   erepro = 1
   w_pp_cutoff = 1
   interaction = 0.5
+  overlap = 0.5
+  eta = 0.5
+  mAmplitude = 0.2
   
+  # switch(i,
+  #        "1" = {h = 40},
+  #        "2" = {ks = 8},
+  #        "3" = {z0pre = 10},
+  #        "4" = {sigma = 1.3},
+  #        "5" = {beta = 50},
+  #        "6" = {f0 = 0.6},
+  #        "7" = {erepro = 0.1},
+  #        "8" = {w_pp_cutoff = 1e4},
+  #        "9" = {interaction = 1},
+  #        "10" = {interaction <- matrix(c(1,0.5,0,0.5,0.5,1,0,1,0.5,0.5,0,0.25,0,0,0,0), ncol = 4)},
+  #        "11" = {},
+  #        "12" = {},
+  #        "13" = {},
+  #        "14" = {eta = 0.25},
+  #        "15" = {eta = 0.25},
+  #        {})
   
-  switch(i,
-         "1" = {h = 40},
-         "2" = {ks = 8},
-         "3" = {z0pre = 10},
-         "4" = {sigma = 1.3},
-         "5" = {beta = 50},
-         "6" = {f0 = 0.6},
-         "7" = {erepro = 0.1},
-         "8" = {w_pp_cutoff = 1e4},
-         "9" = {interaction = 1},
-         {})
-  
-  #h = 10*i +10
-  #ks = i
+  # fisheries
+  gear_names <- rep("FishingStuff", no_sp)
+  knife_edges <- w_inf * eta 
   
   
   tic()
   cat(sprintf("Simulation number %g\n",i))
-  path_to_save = paste(getwd(),file_name,"/run", i, sep = "")
+  path_to_save = paste(getwd(),file_name,"/init/run", i, sep = "")
   
-  sim <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
+  sim <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                  max_w_inf = max_w_inf, RMAX = RMAX, 
-                 OptMutant = "M2",  ken = F, initTime = 1, initPool = 10, mAmplitude = 0.25,
-                 h = h,
-                 ks = ks,
-                 z0pre = z0pre,
-                 sigma = sigma,
-                 beta = beta,
-                 f0 = f0,
-                 erepro = erepro,
-                 w_pp_cutoff = w_pp_cutoff,
-                 cannibalism = interaction, 
-                 effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-                 save_it = T, path_to_save = path_to_save,
-                 print_it = T, normalFeeding = F, Traits = "eta")
+                 OptMutant = "M5",  ken = F, initTime = 1, initPool = 0,
+                 ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, 
+                 mAmplitude = mAmplitude,
+  effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
+  save_it = T, path_to_save = path_to_save,
+  print_it = T, normalFeeding = F, Traits = "eta")
   
   #rm(sim)
   for (j in 1:20) gc()
@@ -115,7 +114,7 @@ for (i in 1:no_sim)
 folder <- paste(getwd(),file_name,sep="")
 initFolder <- paste(folder,"/init",sep="")
 dirContent <- dir(initFolder)
-no_run = 40
+no_run = 20
 
 # NO fisheries
 for (i in 1:length(dirContent))
@@ -125,27 +124,31 @@ for (i in 1:length(dirContent))
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/normal/",dirContent[i],sep = "")
     
-    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
-                   max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
-                   OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1, initCondition = sim,
-                   effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-                   save_it = T, path_to_save = path_to_save,
-                   print_it = T, normalFeeding = F, Traits = "eta")
+    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
+                      max_w_inf = max_w_inf, RMAX = RMAX, 
+                      OptMutant = "M5",  ken = F, initTime = 1, initPool = 10,
+                      ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, initCondition = sim,
+                      mAmplitude = mAmplitude,
+                      effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
+                      save_it = T, path_to_save = path_to_save,
+                      print_it = T, normalFeeding = F, Traits = "eta")
     rm(output)
     for (j in 1:20) gc()
   }
 }
 # Fisheries
-for (i in 1:length(dirContent))
+for (i in 2:length(dirContent))
 {
   if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
   {
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
     
-    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf, 
-                      max_w_inf = max_w_inf, RMAX = RMAX, cannibalism = interaction, 
-                      OptMutant = "M2",w_pp_cutoff = 1e3, erepro = 1, hartvig = T, f0 = 0.5, initTime = 1, initCondition = sim,
+    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
+                      max_w_inf = max_w_inf, RMAX = RMAX, 
+                      OptMutant = "M5",  ken = F, initTime = 1, initPool = 10, initCondition = sim,
+                      ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, 
+                      mAmplitude = mAmplitude,
                       effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
                       save_it = T, path_to_save = path_to_save,
                       print_it = T, normalFeeding = F, Traits = "eta")
@@ -238,6 +241,25 @@ toc()
 
 
 # working on that right now -------------------
+
+
+rownames(interactionBeta) <- c("1","2","3","4")
+colnames(interactionBeta) <- c("1","2","3","4")
+rownames(interactionAlpha) <- c("1","2","3","4","5")
+colnames(interactionAlpha) <- c("1","2","3","4","5")
+
+interactionAlpha<-interactionAlpha[-3,-3]
+
+
+which(rownames(interactionAlpha) != rownames(interactionBeta))
+
+a <- rownames(interactionAlpha)
+b <- rownames(interactionBeta)
+
+ c <- which(!(a %in% b))
+
+interactionSave <- rbind(interactionBeta,interactionAlpha[c,])
+interactionSave <- cbind(interactionSave,interactionAlpha[,c])
 
 # investigate this fucking growth
 object <- get(load("ParamChap1/init/run4/run.Rdata"))
