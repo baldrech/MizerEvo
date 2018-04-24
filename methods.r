@@ -519,9 +519,9 @@ setMethod('getM2', signature(object='MizerSim', n = 'missing', n_pp='missing', p
           })
 
 
-#---------------------
-# starvation mortality
-#-----------------------
+#----------------------------------------------------------------
+# Starvation mortality
+#----------------------------------------------------------------
 
 setGeneric('getSmort', function(object, n, n_pp, e,...)
   standardGeneric('getSmort'))
@@ -557,9 +557,9 @@ setMethod('getSmort', signature(object='MizerSim', n = 'missing', n_pp='missing'
           })
 
 
-#---------------------
-# senescence mortality
-#-----------------------
+#----------------------------------------------------------------
+# Senescence mortality
+#----------------------------------------------------------------
 
 setGeneric('getOmort', function(object,...)
   standardGeneric('getOmort'))
@@ -568,18 +568,21 @@ setGeneric('getOmort', function(object,...)
 #' @aliases getOmort,MizerParams,matrix,numeric,array-method
 setMethod('getOmort', signature(object='MizerParams'),
           function(object, ...){
-            
-           
-              size = object@w
-              param <- object@species_params
-              y <- 0.2*exp(0.5* seq(1,length(size)))
-              Omort <- matrix(0,ncol=length(size),nrow=dim(param)[1],dimnames = list(param$ecotype,size))
-              for (i in 1:dim(Omort)[1])
+              # exponential parameters
+              m_min = 0.1
+              m_max = 1
+              m1 = 1
+              
+              Omort <- matrix(0,ncol=length(object@w),nrow=dim(object@species_params)[1],dimnames = list(object@species_params$ecotype,object@w))
+              for (iSpecies in 1:dim(Omort)[1])
               {
-                Omort[i,] <- c(rep(0,(which(size>=param$w_mat[i])[1]-1)),y)[1:length(size)] # start the exponential at the first size class after w_mat
-                Omort[i,which(size>=param$w_inf[i])] <- 0
+                size = (object@w[which(object@w >= object@species_params$w_mat[iSpecies])[1]:which(object@w >= object@species_params$w_inf[iSpecies])[1]])
+                sizeN = size/size[length(size)]
+                m_rate <- m_min + (m_max-m_min)* exp(-m1* 1/sizeN)
+                a <- length(c(rep(0,(which(size[1]==object@w)-1)), m_rate, rep(0,length(object@w)-(which(size[length(size)]==object@w)))))
+                if (a != 100) print(a)
+                Omort[iSpecies,] <- c(rep(0,(which(size[1]==object@w)-1)), m_rate, rep(0,length(object@w)-(which(size[length(size)]==object@w))))
               }
-  
             return(Omort)
           })
 
