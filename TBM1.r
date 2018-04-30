@@ -593,18 +593,23 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
            },
            M5 = { # pick only one mutant but give a chance to every species
              residentPool = sim@params@species_params[sim@params@species_params$extinct == FALSE,] # only keep the available residents (the one not extinct)
+             #print(residentPool[,c(17,21)])
              speciesPool = unique(residentPool$species) # which species are available to produce new phenotypes
              challengers <- NULL
              for (iSpecies in speciesPool) # do the picking for every species
              {
                if (mu >= sample(1:1000, 1)) # if mutant happens
                {
-                 resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
+                 print(iSpecies)
+                 print(residentPool[residentPool$species == iSpecies,]$ecotype)
+                 if (length(residentPool[residentPool$species == iSpecies,]$ecotype)>1) 
+                   {resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
+                 } else {resident <- residentPool[residentPool$species == iSpecies,]$ecotype}
                  mute = TRUE
                  challengers <- c(challengers,resident)
                } 
              }
-             if (length(challengers) >1){
+             if (length(challengers)>1){
              cat(sprintf("Possible new phenotypes\n"))
              print(challengers)
              resident <- sample(challengers,1) # select only one to mutate (I know I'm lazy)
