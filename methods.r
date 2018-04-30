@@ -531,7 +531,7 @@ setGeneric('getSmort', function(object, n, n_pp, e,...)
 setMethod('getSmort', signature(object='MizerParams', n = 'matrix', n_pp='numeric', e = 'matrix'),
           function(object, n, n_pp, e, ...){
             mu_S <- e - object@std_metab - object@activity
-            mu_S[mu_S<0]<- t(apply(mu_S,1,function(x,y = object@dw){x[which(x<0)]/y[which(x<0)]}))
+            mu_S[mu_S<0]<- t(apply(mu_S,1,function(x,y = object@w){x[which(x<0)]/0.1*y[which(x<0)]}))
             mu_S[mu_S>0] <- 0
             return(mu_S)
           })
