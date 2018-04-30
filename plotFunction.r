@@ -196,7 +196,7 @@ plotSummary <- function(x, ...){
 
 # plot biomass
 
-plotDynamics <- function(object, time_range = c(min(dimnames(object@n)$time),max(dimnames(object@n)$time)), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
+plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n)$time)),max(as.numeric(dimnames(object@n)$time))), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   # get the phenotype biomass through time (need at least 2 time steps for now)
@@ -448,7 +448,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
       }
       biom <- do.call("abind", list(biomList, along = 1)) # abind the list
       names(dimnames(biom)) = list("time", "species", "size")
-      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(length(seq(1, SummaryParams@species_params$timeMax[1]*dt))-1,length(seq(1, SummaryParams@species_params$timeMax[1]*dt)))] # system D
       
       # I have to do the phyto aussi
       phyto <- do.call(abind, c(lapply(sim, function(isim)
@@ -727,7 +727,7 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
     
     if(save_it) ggsave(plot = p, filename = nameSave)
     
-    if (returnData) return(plot_dat) else if(print_it) return(p)
+    if (returnData) return(list(plot_dat,plot_crit)) else if(print_it) return(p)
     
   }
   
@@ -774,10 +774,10 @@ plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time
           panel.grid.minor = element_line(colour = "grey92"),
           legend.key = element_rect(fill = "white"))+
     ggtitle(name)
-
+  
   if(save_it) ggsave(plot = p, filename = nameSave)
   
-  if (returnData) return(plot_dat) else if(print_it) return(p)
+  if (returnData) return(list(plot_dat,Critfeed)) else if(print_it) return(p)
 }
 
 # plot of the number of ecotype per time step
@@ -1663,19 +1663,19 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     print(SpIdx)}
   
   # determine the initial maturation size for normalisation purpose
-  # if (Mat && is.null(Wmat))
-  # {
-  #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
-  #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
-  # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
-  if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
-  if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
-  
-  if (comments) {
-    cat("Wmat is")
-    print(Wmat)
+  if (Mat && is.null(Wmat))
+  {
+    #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
+    #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
+    # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
+    if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(5.00000, 15.81139, 50.00000, 158.11388, 500.00000, 1581.13883, 5000.00000, 15811.38830, 50000.00000) #eta = 0.5
+    if (sum(SpIdx == seq(1,3)) == length(SpIdx)) Wmat = c(5,50,500)
+    
+    if (comments) {
+      cat("Wmat is")
+      print(Wmat)
+    }
   }
-  #}
   
   
   # beforehand
@@ -2925,7 +2925,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       }
       biom <- do.call("abind", list(biomList, along = 1)) # abind the list
       names(dimnames(biom)) = list("time", "species", "size")
-      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(length(seq(1, SummaryParams@species_params$timeMax[1]*dt))-1,length(seq(1, SummaryParams@species_params$timeMax[1]*dt)))] # system D
       
       # I have to do the phyto aussi
       phyto <- do.call(abind, c(lapply(sim, function(isim)
@@ -4500,7 +4500,6 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
       dataList[[dirContentIdx]] <- scenarioList
     }
   }
-  colnames(exit_df) <- c("species","extinction")
   
   # do an average across simulation
   plot_dat <- data.frame(dataList[[1]][[1]]$time,dataList[[1]][[1]]$species,
@@ -4532,7 +4531,7 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
   p <- ggplot(plot_dat) +
     stat_smooth(aes(x = time, y = popN, color = as.factor(species), linetype = "un-fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
     stat_smooth(aes(x = time, y = popF,color = as.factor(species), linetype = "fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
-    geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+    #geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
     geom_vline(xintercept = 4000, linetype = "dashed") +
     scale_x_continuous(name = "Time (yr)") +
     scale_y_continuous(name = "Number of phenotypes")+
@@ -4549,7 +4548,30 @@ plotNoPhen <- function(folder, comments = T, print_it = T, returnData = F, SpIdx
            linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
     ggtitle("Variation of phenotype's number throughout the simulation")
   
-  
+  if(length(exit_df) !=0)
+  {
+    colnames(exit_df) <- c("species","extinction")
+    p <- ggplot(plot_dat) +
+      stat_smooth(aes(x = time, y = popN, color = as.factor(species), linetype = "un-fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+      stat_smooth(aes(x = time, y = popF,color = as.factor(species), linetype = "fished"), method = "loess", span = 0.15, se = F, size = 0.5)+
+      geom_point(data = exit_df, aes(x=extinction,y=0,color=as.factor(species))) +
+      geom_vline(xintercept = 4000, linetype = "dashed") +
+      scale_x_continuous(name = "Time (yr)") +
+      scale_y_continuous(name = "Number of phenotypes")+
+      scale_color_manual(name = "Species", values = colGrad)+ # color gradient
+      scale_linetype_manual(name = "Fisheries", values = colLine)+
+      theme(legend.title=element_blank(),
+            legend.position=c(0.5,0.95),
+            legend.justification=c(1,1),
+            legend.box = "horizontal",
+            legend.key = element_rect(fill = "white"),
+            panel.background = element_rect(fill = "white", color = "black"),
+            panel.grid.minor = element_line(colour = "grey92"))+
+      guides(color=guide_legend(override.aes=list(fill=NA), order =1),
+             linetype = guide_legend(order = 2,override.aes = list(colour = "black")))+
+      ggtitle("Variation of phenotype's number throughout the simulation")
+    
+  }
   
   
   # color gradient
