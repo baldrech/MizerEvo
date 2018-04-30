@@ -1676,6 +1676,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       print(Wmat)
     }
   }
+
+
   
   
   # beforehand
