@@ -192,14 +192,16 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     
     # Set up the effort array transposed so we can use the recycling rules
     #time_dimnames <- signif(seq(from=1,to=t_max,by=dt),3)
-    time_dimnames <- signif(seq(from=1*dt,to=(t_max/dt-8)*dt,by=dt),3) #if I keep the previous one, I' missing the first 8 time step, which should be the inverse situation
+    time_dimnames <- signif(seq(from=1*dt,to=(t_max/dt)*dt,by=dt),3) #if I keep the previous one, I' missing the first 8 time step, which should be the inverse situation # deleted the -8 and it did not change anything (fingers crossed)
     # that's super weird
     
     effort_array <- t(array(effort, dim=c(no_gears,length(time_dimnames)), dimnames=list(gear=effort_gear_names,time=time_dimnames)))
     effort <- effort_array
   }
   # now we have the effort check an in the array format
-  
+  # print(class(effort))
+  # print(dim(effort))
+  # print(dimnames(effort))
   
   
   validObject(object)
@@ -363,6 +365,7 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     # print(dimnames(m2))
     # print(m2)
     m2_background <- getM2Background(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate)
+    #print(effort_dt[i_time,])
     z <- getZ(sim@params, n=n, n_pp=n_pp, effort=effort_dt[i_time,], m2=m2) #total mortality 
     e <- getEReproAndGrowth(sim@params, n=n, n_pp=n_pp, feeding_level=feeding_level)
     e_spawning <- getESpawning(sim@params, n=n, n_pp=n_pp, e=e)
