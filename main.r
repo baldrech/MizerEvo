@@ -29,25 +29,26 @@ source("utility.r") # helpful functions
 # a@params@species_params$r_max
 
 # multi species simulations ----------
-file_name = "/NewTest"
+file_name = "/SimNoRmax"
 
 # PARAMETERS
 # physio
 no_sp = 9
 min_w_inf <- 10
 max_w_inf <- 1e5
-RMAX = T
+RMAX = F
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
 
 
 # other
 t_max = 50
-no_run = 40
-no_sim = 5
+no_run = 60
+no_sim = 3
+i_start = 2
 
 # initialisation phase (4000 yr)
-for (i in 2:no_sim)
+for (i in i_start:no_sim)
 {
   # parameters worth checking: h, ks, z0pre, sigma, beta, f0, erepro, w_pp_cutoff
   # defaults
@@ -61,7 +62,7 @@ for (i in 2:no_sim)
   w_pp_cutoff = 1
   interaction = 0.5
   overlap = 0.5
-  eta = 0.5
+  eta = 0.25
   mAmplitude = 0.2
   
   # switch(i,
@@ -114,10 +115,10 @@ for (i in 2:no_sim)
 folder <- paste(getwd(),file_name,sep="")
 initFolder <- paste(folder,"/init",sep="")
 dirContent <- dir(initFolder)
-no_run = 20
+no_run = 60
 
 # NO fisheries
-for (i in 1:length(dirContent))
+for (i in i_start:length(dirContent))
 {
   if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
   {
@@ -137,7 +138,7 @@ for (i in 1:length(dirContent))
   }
 }
 # Fisheries
-for (i in 2:length(dirContent))
+for (i in i_start:length(dirContent))
 {
   if (file.exists(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = ""))) 
   {
