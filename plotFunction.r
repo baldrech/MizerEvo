@@ -196,7 +196,7 @@ plotSummary <- function(x, ...){
 
 # plot biomass
 
-plotDynamics <- function(object, time_range = c(min(dimnames(object@n)$time),max(dimnames(object@n)$time)), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
+plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n)$time)),max(as.numeric(dimnames(object@n)$time))), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   # get the phenotype biomass through time (need at least 2 time steps for now)
@@ -448,7 +448,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
       }
       biom <- do.call("abind", list(biomList, along = 1)) # abind the list
       names(dimnames(biom)) = list("time", "species", "size")
-      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(length(seq(1, SummaryParams@species_params$timeMax[1]*dt))-1,length(seq(1, SummaryParams@species_params$timeMax[1]*dt)))] # system D
       
       # I have to do the phyto aussi
       phyto <- do.call(abind, c(lapply(sim, function(isim)
@@ -1663,8 +1663,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     print(SpIdx)}
   
   # determine the initial maturation size for normalisation purpose
-  # if (Mat && is.null(Wmat))
-  # {
+  if (Mat && is.null(Wmat))
+  {
   #Wmat = c(25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000)
   #Wmat = object@params@species_params$w_mat[1:length(object@params@species_params$species)]
   # if (sum(SpIdx == seq(1,9)) == length(SpIdx)) Wmat = c(2.5, 7.905694, 25, 79.056942, 250, 790.569415, 2500, 7905.694150, 25000) #eta = 0.25
@@ -1675,7 +1675,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     cat("Wmat is")
     print(Wmat)
   }
-  #}
+  }
   
   
   # beforehand
@@ -2925,7 +2925,7 @@ plotTraitLong <- function(folder,Mat = T, PPMR = F,Sig = F, SpIdx = NULL, commen
       }
       biom <- do.call("abind", list(biomList, along = 1)) # abind the list
       names(dimnames(biom)) = list("time", "species", "size")
-      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(5999,6000)] # system D
+      dimnames(biom)$time = seq(1, SummaryParams@species_params$timeMax[1]*dt)[-c(length(seq(1, SummaryParams@species_params$timeMax[1]*dt))-1,length(seq(1, SummaryParams@species_params$timeMax[1]*dt)))] # system D
       
       # I have to do the phyto aussi
       phyto <- do.call(abind, c(lapply(sim, function(isim)
