@@ -344,10 +344,22 @@ superStich <- function(listOfSim)
   
   # Now that I have ecotypes name without duplicate, I can stitch the sims
   
-  a = do.call(rbind, lapply(listOfSim, function(isim) isim@params@species_params))
-  a$ecotype = EcoName
+  Sparams = do.call(rbind, lapply(listOfSim, function(isim) isim@params@species_params))
+  Sparams$ecotype = EcoName
   
-  trait_params <- MizerParams(a, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda)
+  #trait_params <- MizerParams(Sparams, min_w = min_w, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda)
+  
+  trait_params <- MizerParams(Sparams, 
+                            max_w=1.1*Sparams[length(unique(Sparams$species)),"w_inf"], #w_inf of biggest species at the start
+                            no_w = length(listOfSim[[1]]@params@w), 
+                            min_w_pp = listOfSim[[1]]@params@w_full[1], 
+                            w_pp_cutoff = round(as.numeric(names(listOfSim[[1]]@params@cc_pp[listOfSim[[1]]@params@cc_pp == 0][1]))),# first size where the background is 0
+                            n = 0.75, p = 0.75, q = 0.8, # I never touch these
+                            r_pp=4, kappa=0.05, #lambda = (2+q-n), # nor these
+                            normalFeeding = F, 
+                            tau = 7,
+                            interaction = matrix(data = listOfSim[[1]]@params@interaction[1,1],nrow = dim(Sparams)[1],ncol = dim(Sparams)[1],dimnames = list(Sparams$ecotype,Sparams$ecotype)))
+  
   
   for (i in 1:20) gc()
   
