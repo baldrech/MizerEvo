@@ -1677,9 +1677,6 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
     }
   }
 
-
-  
-  
   # beforehand
   if (save_it & is.null(dir))  # if want to save but not specified where
     dir = paste(getwd(),"/temporary",sep = "")
