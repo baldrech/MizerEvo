@@ -190,10 +190,10 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         
         #mutant abundance
         n_mutant <- rep(0,no_w)
-        n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes randomly
+        #n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes randomly
         #n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
 
-        n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
+        #n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
         n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
         rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
         
@@ -208,7 +208,26 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     
     # Recreate the "param" object needed for the projection
     param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
-  }
+  
+    # redistribute the abundance of the phenotypes more randomly
+    template <- n_init[1:no_sp,]
+    for (iSpecies in 1:no_sp) # for every species
+    {
+      #the total abundance is in the species row
+      # it should be randomly distributed among all the phenotypes
+      # randomly draw fractions of 1 that sums up ot 1
+      # draw 10 random numbers and normalise to the right sum
+      biomRandom<- runif(initPool+1,0,1)
+      biomFrac <- biomRandom/sum(biomRandom) # that's the fraction to apply to the initial abundance to spread the biomass among phenotypes
+      position = 0
+      for(iPhen in which(param@species_params$species == iSpecies))
+      {
+        position = position + 1
+      n_init[iPhen,] <- template[iSpecies,] * biomFrac[position]
+      }
+    }
+
+    }
   else 
   {
     Nparam <- initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct at start the sim
@@ -225,8 +244,10 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     n_init = initCondition@n[dim(initCondition@n)[1],,] # take last time step of the abundance to make it first time step
     n_pp_init = initCondition@n_pp[dim(initCondition@n_pp)[1],] # same for plankton
     if (print_it) cat(sprintf("Starting simulation with previous run.\n"))
-    no_run = no_run + max(Nparam$run) # update number of runs
-    firstRun = max(Nparam$run) +1 # state at which run we're starting
+    #no_run = no_run + max(Nparam$run) # update number of runs
+    no_run = no_run + max(Nparam$timeMax)/t_max*dt # update number of runs
+    #firstRun = max(Nparam$run) +1 # state at which run we're starting
+    firstRun = max(Nparam$timeMax)/t_max*dt +1 # state at which run we're starting
     nameList = initCondition@params@species_params$ecotype # this list keep in memory all the species name (as I lose some in my ecotypes by getting rid of the extinct/ use to give ecotypes namee)
   }
   
@@ -430,10 +451,14 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
       
       # need to change the interaction matrix as well
+      print(1)
+      print(interaction)
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
-      
+      print(2)
+      print(interaction)
       param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau,interaction = interaction)
-
+      print(3)
+      print(param@interaction)
       spIndex = as.character(Nparam$ecotype)
       n_init = sim@n[dim(sim@n)[1],spIndex,]
       n_pp_init = sim@n_pp[dim(sim@n)[1],]
@@ -452,8 +477,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     a <- a[!duplicated(a$ecotype),]
     SummaryParams = a[order(a$pop,a$ecotype),]
     # Update all the other param from the dataframe
+    print(4)
     FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
-    
+    print(5)
     #return(list(allRun,FinalParam))
     
     # handle and save the final data
