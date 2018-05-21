@@ -603,8 +603,8 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
              {
                if (mu >= sample(1:1000, 1)) # if mutant happens
                {
-                 print(iSpecies)
-                 print(residentPool[residentPool$species == iSpecies,]$ecotype)
+                 # print(iSpecies)
+                 # print(residentPool[residentPool$species == iSpecies,]$ecotype)
                  if (length(residentPool[residentPool$species == iSpecies,]$ecotype)>1) 
                    {resident <- sample(residentPool[residentPool$species == iSpecies,]$ecotype, 1) # get the name of one phenotype in the selected species
                  } else {resident <- residentPool[residentPool$species == iSpecies,]$ecotype}
@@ -614,7 +614,7 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
              }
              if (length(challengers)>1){
              cat(sprintf("Possible new phenotypes\n"))
-             print(challengers)
+             # print(challengers)
              resident <- sample(challengers,1) # select only one to mutate (I know I'm lazy)
              } else if (length(challengers == 1)) resident <- challengers
              },
