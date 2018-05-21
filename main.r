@@ -29,14 +29,14 @@ source("utility.r") # helpful functions
 # a@params@species_params$r_max
 
 # multi species simulations ----------
-file_name = "/SimNoRmax"
+file_name = "/SimDefault"
 
 # PARAMETERS
 # physio
 no_sp = 9
 min_w_inf <- 10
 max_w_inf <- 1e5
-RMAX = F
+RMAX = T
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
 
@@ -44,8 +44,8 @@ w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # fo
 # other
 t_max = 50
 no_run = 60
-no_sim = 3
-i_start = 2
+no_sim = 5
+i_start = 1
 
 # initialisation phase (4000 yr)
 for (i in i_start:no_sim)
@@ -242,6 +242,10 @@ toc()
 
 
 # working on that right now -------------------
+
+# plot standard deviation between runs
+
+
 
 
 rownames(interactionBeta) <- c("1","2","3","4")
