@@ -531,8 +531,9 @@ setGeneric('getSmort', function(object, n, n_pp, e,...)
 setMethod('getSmort', signature(object='MizerParams', n = 'matrix', n_pp='numeric', e = 'matrix'),
           function(object, n, n_pp, e, ...){
             mu_S <- e - object@std_metab - object@activity
-            mu_S[mu_S<0]<- t(apply(mu_S,1,function(x,y = object@w){x[which(x<0)]/0.1*y[which(x<0)]}))
+            mu_S[mu_S<0]<- t(apply(mu_S,1,function(x,y = 0.1*object@w){x[which(x<0)]/y[which(x<0)]}))
             mu_S[mu_S>0] <- 0
+            mu_S = - mu_S
             return(mu_S)
           })
 #' @rdname getSmort-methods
@@ -548,12 +549,13 @@ setMethod('getSmort', signature(object='MizerParams', n = 'matrix', n_pp='numeri
 setMethod('getSmort', signature(object='MizerSim', n = 'missing', n_pp='missing', e = 'missing'),
           function(object, time_range=dimnames(object@n)$time, drop=TRUE, ...){
             time_elements <- get_time_elements(object,time_range)
-            e_time <- aaply(which(time_elements), 1, function(x){
+            mu_time <- aaply(which(time_elements), 1, function(x){
               n <- array(object@n[x,,],dim=dim(object@n)[2:3])
               dimnames(n) <- dimnames(object@n)[2:3]
               e <- getE(object@params, n=n, n_pp = object@n_pp[x,])
-              return(e)}, .drop=drop)
-            return(e_time)
+              mu_S <- getSmort(object@params,n=n,n_pp=object@n_pp[x,], e=e)
+              return(mu_S)}, .drop=drop)
+            return(mu_time)
           })
 
 
@@ -820,13 +822,9 @@ setMethod('getFMort', signature(object='MizerParams', effort='matrix'),
 #' @aliases getFMort,MizerSim,missing-method
 setMethod('getFMort', signature(object='MizerSim', effort='missing'),
           function(object, effort, time_range=dimnames(object@effort)[[1]], drop=TRUE, ...){
-
- print(time_range)
             time_elements <- get_time_elements(object,time_range, slot="effort")
-  
-            fMort <- getFMort(object@params, object@effort, ...)
-   
-            return(fMort[time_elements,,,drop=drop])
+              fMort <- getFMort(object@params, object@effort, ...)
+               return(fMort[time_elements,,,drop=drop])
           })
 
 
@@ -871,7 +869,7 @@ setMethod('getZ', signature(object='MizerParams', n = 'matrix', n_pp = 'numeric'
             f_mort <- getFMort(object, effort = effort)
             mu_S <- getSmort(object, n=n, n_pp = n_pp)
             mu_O <- getOmort(object)
-            z = sweep(m2- mu_S + mu_O + f_mort,1,object@species_params$z0,"+")
+            z = sweep(m2 + mu_S + mu_O + f_mort,1,object@species_params$z0,"+")
             #z = sweep(m2- mu_S + f_mort,1,object@species_params$z0,"+")
             return(z)
           })

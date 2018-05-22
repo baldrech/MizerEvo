@@ -608,7 +608,7 @@ plotSS <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
 }
 
 # fisheries mortality
-plotFM <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), print_it = TRUE, ...){
+plotFM <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), print_it = T, returnData = F, ...){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   f_time <- getFMort(object, time_range=time_range, drop=FALSE, ...)
@@ -628,9 +628,8 @@ plotFM <- function(object, time_range = max(as.numeric(dimnames(object@n)$time))
     scale_colour_manual(values=cbPalette)+ # colorblind
     ggtitle(NULL)
   
-  if (print_it)
-    print(p)
-  return(p)
+  if (returnData) return(plot_dat) else if (print_it) return(p)
+
 }
 
 
@@ -681,7 +680,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 }
 
 # plot feeding / satiation level
-plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = F, start = 1000, every = 1000, print_it = T, returnData = F, save_it =F, ...){
+plotFood <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, throughTime = F, start = 1000, every = 1000, print_it = T, returnData = F, save_it =F, nameSave = "Feeding.png"){
   
   
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
@@ -1042,8 +1041,7 @@ plotUdead <- function(object, time_range = max(as.numeric(dimnames(object@n)$tim
     scale_y_continuous(name = "M2", lim=c(0,max(plot_dat$value))) +
     ggtitle(name)
   
-  if (print_it) print(p)
-  if(returnData) return(plot_dat) else return(p)
+  if(returnData) return(plot_dat) else if (print_it) return(p)
 }
 
 plotTotMort <- function(directory, predMort = NULL, time_range = NULL, print_it =F, returnData = F)
@@ -1166,6 +1164,105 @@ plotScythe <- function(object, whatTime = max(as.numeric(dimnames(object@n)$time
   if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
+plotSenescence <- function(object, what_time = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it =F, nameSave = "Senescence.png"){
+  
+  
+  cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
+  
+  death_time <- getOmort(object=object, time_range=what_time, drop=FALSE) #, ...) # get the feeding time
+  #death <- apply(death_time, c(2,3), mean) # average on the time frame
+  death <- death_time
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    dimnames(death)[[1]] = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    death_sp = matrix(data = NA, ncol = dim(death)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(death)$w)) # prepare the new object
+    names(dimnames(death_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = death # save to manip
+      temp[which(rownames(death) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(death)==i)) # do the mean (in 2 steps)
+      death_sp[which(rownames(death_sp)==i), ] = temp
+    }
+    death = death_sp
+  }
+  
+  # a <- c(object@params@species_params$w_inf[1:9]) # to get vline of different col, need to create a data frame
+  # vlines <- data.frame(xint = a,grp = c(1:9))
+  
+  plot_dat <- data.frame(value = c(death), species = dimnames(death)[[1]], size = rep(object@params@w, each=length(dimnames(death)[[1]])))
+  
+  name = paste("Senescence at time",what_time,sep=" ")
+  
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=size, y = value, colour = as.factor(species))) + 
+    #geom_vline(data = vlines,aes(xintercept = xint,colour = as.factor(grp)), linetype = "dashed") + 
+    scale_x_log10(name = "Size", breaks = c(1 %o% 10^(-3:5)))  + 
+    scale_y_continuous(name = "Instantaneous senescence mortality", lim=c(0,NA))+
+    scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
+    theme(panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          legend.key = element_rect(fill = "white"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
+}
+
+plotStarvation <- function(object, what_time = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it =F, nameSave = "Starvation.png"){
+  
+  
+  cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
+  
+  death_time <- getSmort(object=object, time_range=what_time, drop=FALSE)
+  #death <- apply(death_time, c(2,3), mean) # average on the time frame
+  death <- death_time[1,,]
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    dimnames(death)[[1]] = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    death_sp = matrix(data = NA, ncol = dim(death)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(death)$w)) # prepare the new object
+    names(dimnames(death_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = death # save to manip
+      temp[which(rownames(death) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(death)==i)) # do the mean (in 2 steps)
+      death_sp[which(rownames(death_sp)==i), ] = temp
+    }
+    death = death_sp
+  }
+  
+  # a <- c(object@params@species_params$w_inf[1:9]) # to get vline of different col, need to create a data frame
+  # vlines <- data.frame(xint = a,grp = c(1:9))
+  
+  plot_dat <- data.frame(value = c(death), species = dimnames(death)[[1]], size = rep(object@params@w, each=length(dimnames(death)[[1]])))
+  
+  name = paste("Starvation at time",what_time,sep=" ")
+  
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=size, y = value, colour = as.factor(species))) + 
+    #geom_vline(data = vlines,aes(xintercept = xint,colour = as.factor(grp)), linetype = "dashed") + 
+    scale_x_log10(name = "Size", breaks = c(1 %o% 10^(-3:5)))  + 
+    scale_y_continuous(name = "Instantaneous starvation mortality")+
+    scale_colour_manual(values=cbPalette, name = "Species")+ # colorblind
+    theme(panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"),
+          legend.key = element_rect(fill = "white"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
+}
 
 # plot growth at time t
 
@@ -1394,6 +1491,56 @@ plotGrowthCurve <- function(object,time_range = max(as.numeric(dimnames(object@n
   
   if(print_it) print(p)
   return(p)
+}
+
+plotSpawn <- function(object, time_range = max(as.numeric(dimnames(object@n)$time)), species = T, print_it = T, returnData = F, save_it = F, nameSave = "Spawn.png",...){
+  
+  time_elements <- get_time_elements(object,time_range)
+  spawn_time <- aaply(which(time_elements), 1, function(x){
+    # Necessary as we only want single time step but may only have 1 species which makes using drop impossible
+    
+    n <- array(object@n[x,,],dim=dim(object@n)[2:3])
+    dimnames(n) <- dimnames(object@n)[2:3]
+    spawn <- getESpawning(object@params, n=n, n_pp = object@n_pp[x,])
+    return(spawn)})
+  
+  #spawn <- apply(spawn_time, c(2,3), mean) # use this when I will have time_range on more than one time
+  spawn = spawn_time
+  
+  if (species) # if I want to display species instead of ecotypes
+  {
+    dimnames(spawn)$sp = object@params@species_params$species
+    SpIdx = sort(unique(object@params@species_params$species)) # get the species names
+    spawn_sp = matrix(data = NA, ncol = dim(spawn)[2], nrow = length(SpIdx), dimnames = list(SpIdx,dimnames(spawn)$w)) # prepare the new object
+    names(dimnames(spawn_sp))=list("species","size")
+    
+    for (i in SpIdx)
+    {
+      temp = spawn # save to manip
+      temp[which(rownames(spawn) != i), ] = 0 # keep the ecotypes from the species only
+      temp = apply(temp, 2, sum)
+      temp = temp / length(which(rownames(spawn)==i)) # do the mean (in 2 steps)
+      spawn_sp[which(rownames(spawn_sp)==i), ] = temp
+    }
+    spawn = spawn_sp
+  }
+  
+  name = paste("Spawn level at time",time_range,sep=" ")
+  plot_dat <- data.frame(value = c(spawn), Species = dimnames(spawn)[[1]], w = rep(object@params@w, each=length(dimnames(spawn)[[1]])))
+  p <- ggplot(plot_dat) + 
+    geom_line(aes(x=w, y = value, colour = Species)) + 
+    scale_x_continuous(name = "Size", trans="log10", breaks = c(1 %o% 10^(-3:5))) + 
+    scale_y_continuous(name = "Energy allocated to spawning", trans ="log10")+
+    theme(legend.title=element_blank(),
+          legend.justification=c(1,1),
+          legend.key = element_rect(fill = "white"),
+          panel.background = element_rect(fill = "white", color = "black"),
+          panel.grid.minor = element_line(colour = "grey92"))+
+    ggtitle(name)
+  
+  if(save_it) ggsave(plot = p, filename = nameSave)
+  
+  if (returnData) return(plot_dat) else if(print_it) return(p)
 }
 
 # evolution plots -----------
