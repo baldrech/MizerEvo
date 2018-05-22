@@ -45,7 +45,7 @@ w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # fo
 t_max = 50
 no_run = 60
 no_sim = 5
-i_start = 2
+i_start = 1
 
 # initialisation phase (4000 yr)
 for (i in i_start:no_sim)

@@ -299,10 +299,9 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
           if(!is.numeric(mutant$ecotype))
           {
-            cat(sprintf("something is wrong with the mutant name: %i", mutant$ecotype))
+            cat(sprintf("something is wrong with the mutant name: %i\n", mutant$ecotype))
           }
           while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(as.numeric(unlist(strsplit(as.character(resident), "")))[1],sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
-          
           # TRAITS
           switch(Traits,
                  size = {
@@ -337,7 +336,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                    mutant["eta"] <- resident_params["eta"] + rnorm(1, 0, sd) # change a bit eta
                    if (mutant["eta"] >= 1) mutant["eta"] <- 0.95 # because yes it does happen
                    mutant["w_mat"] <- mutant["w_inf"] * mutant["eta"] # update
-                   cat(sprintf("Its w_mat is: %g\n",mutant["w_mat"]))
+                   #cat(sprintf("Its w_mat is: %g\n",mutant["w_mat"]))
                  },
                  all = {
                    # Trait = asymptotic size
@@ -358,6 +357,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
                  {
                    print("congrats, you managed to fuck up somewhere")
                  })
+          
+          cat(sprintf("Its name is %i and its trait value is %g\n", mutant$ecotype,mutant["w_mat"]))
           
           # I need to specify the name myself as the dataframe way is not consistant and subject to errors. It will work as long as a parent has less than 1e5 mutants
           rownames(mutant) = mutant$ecotype
