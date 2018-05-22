@@ -95,8 +95,7 @@ if (returnData) return(fitness) else if(print_it) return(p)
 
 # upgrade of cohort function to run on folders
 
-folder = paste(getwd(),"/SimDefault",sep="")
-cohortSpan <- seq(1000,5000,1000)
+
 
 plotCohortLong <- function(folder, dt = 0.1, t_steps = 5, SpIdx = NULL, iSpecies = NULL, cohortSpan = NULL, print_it = T, returnData = F, save_it = F, comments = T, what = c("normal","fisheries"))
 {
@@ -263,11 +262,11 @@ plotCohortLong <- function(folder, dt = 0.1, t_steps = 5, SpIdx = NULL, iSpecies
   if(returnData) return(plot_datList) else{}
 
 }
-
-cohortSpan <- seq(100,5900,250)
-myData <- plotCohortLong(folder = paste(getwd(),"/SimDefault",sep=""), cohortSpan = cohortSpan, returnData = T )
-saveRDS(myData,file = "fitnessMat.rds")
-myData <- readRDS("fitnessMat.rds")
+folder = paste(getwd(),"/SimDefault",sep="")
+cohortSpan <- seq(10,300,length.out = 6)
+myData <- plotCohortLong(folder = folder, cohortSpan = cohortSpan, t_steps = 10, returnData = T )
+saveRDS(myData,file = "fitnessMat2.rds")
+myData <- readRDS("fitnessMat2.rds")
 
 # Let's play with the data
 # myData is a list of normal fitness (1) et fisheries fitness(2)

@@ -243,11 +243,6 @@ toc()
 
 # working on that right now -------------------
 
-# plot standard deviation between runs
-
-
-
-
 rownames(interactionBeta) <- c("1","2","3","4")
 colnames(interactionBeta) <- c("1","2","3","4")
 rownames(interactionAlpha) <- c("1","2","3","4","5")
