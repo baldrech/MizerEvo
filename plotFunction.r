@@ -196,7 +196,7 @@ plotSummary <- function(x, ...){
 
 # plot biomass
 
-plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n)$time)),max(as.numeric(dimnames(object@n)$time))), phenotype = TRUE, species = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
+plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n)$time)),max(as.numeric(dimnames(object@n)$time))), phenotype = TRUE, species = NULL, SpIdx = NULL, print_it = T, returnData = F, save_it = F, nameSave = "Biomass.png", ylimit = c(1e-11,NA)){
   cbPalette <- c("#999999","#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7") #9 colors for colorblind
   
   # get the phenotype biomass through time (need at least 2 time steps for now)
@@ -205,10 +205,10 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
   biomass <- biomass[time_elements,]
   
   # getting rid of the species that went extinct during the initialisation
-  SpIdx = NULL 
-  for (i in unique(object@params@species_params$species))
-    if (sum(biomass[,i]) != 0 & dim(object@params@species_params[object@params@species_params$species == i,])[1] != 1) 
-      SpIdx = c(SpIdx,i)
+  if (is.null(SpIdx))
+    for (i in unique(object@params@species_params$species))
+      if (sum(biomass[, i]) != 0 & dim(object@params@species_params[object@params@species_params$species == i, ])[1] != 1)
+        SpIdx = c(SpIdx, i)
   
   # sum the phenotype biomass per species
   biomassSp = NULL
@@ -221,6 +221,10 @@ plotDynamics <- function(object, time_range = c(min(as.numeric(dimnames(object@n
     biomassSp = cbind(biomassSp,biomassPhen)
   }
   colnames(biomassSp) = SpIdx
+  
+  # apply SpIdx on biomass as well
+  spSub <- object@params@species_params$ecotype[object@params@species_params$species %in% SpIdx]
+  biomass <- biomass[,as.numeric(dimnames(biomass)$species) %in% spSub]
   
   plotBiom <- function(x)
   {
@@ -488,7 +492,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
     if(SD)
     {
       iSim <- NULL
-      for (simNumber in 1:length(longSimList)) iSim <- abind(iSim,as.matrix(plotDynamics(longSimList[[simNumber]], returnData = T)), along = 3)
+      for (simNumber in 1:length(longSimList)) iSim <- abind(iSim,as.matrix(plotDynamics(longSimList[[simNumber]], returnData = T, SpIdx = SpIdx)), along = 3)
 
       meanSp <- apply(iSim[,"value",],1, mean)
       sdSp <- apply(iSim[,"value",],1, sd)
@@ -503,7 +507,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
     #rm(longSimList)
     for(i in 1:20) gc()
     if (comments) cat("Simulations concatened\n")
-    plot_dat <- plotDynamics(sim,returnData = T,phenotype = F)
+    plot_dat <- plotDynamics(sim,returnData = T,phenotype = F, SpIdx = SpIdx)
     #plot_dat <- biom(sim,phenotype = F)
     if (comments) cat("Phenotypes reunification\n")
     plot_datList[[listPosition]] <- plot_dat
@@ -1821,9 +1825,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   if (comments) cat("plotTraitsMulti begins\n") 
   
   if (is.null(SpIdx)) SpIdx <- seq(1,9)
-  if (comments) 
-  {cat("SpIdx set to:")
-    print(SpIdx)}
+  if(comments) cat(sprintf("Spidx set to\n"))
+  if (comments) print(SpIdx)
   
   # determine the initial maturation size for normalisation purpose
   if (Mat && is.null(Wmat))
@@ -1859,12 +1862,13 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   
   # because I am starting simulations with previous abundance but not updating the time max (because I forgot and I do not want to run all my sims again) I need to do it here (which will disapear once I do the update in model.r)
   
-  if (is.null(TimeMax)) TimeMax = 4e4 #default initialisation period
+  if (is.null(TimeMax)) TimeMax = 3e4 #default initialisation period
   TimeMax <- (SumPar$timeMax[1] + TimeMax) * dt
   for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = TimeMax
   
   if (is.null(window)) window = c(-1,1)
   if (comments) cat(sprintf("windows set from %g to %g\n",window[1],window[2]))
+  
   # Weighted mean
   # 1) matrix of summed abundance of mature ind at each time step
   truc = object@n
@@ -1893,10 +1897,10 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   #     SpIdx = c(SpIdx,i)
   
   # SpIdx is annoying:
-  if (length(SpIdx) > length(unique(SumPar$species))) SpIdx = unique(SumPar$species) # ok so I might have species not even reaching this point so I'm short cuting spidx automatcaly
+  if (length(SpIdx) > length(unique(SumPar$species))) SpIdx = unique(SumPar$species) # ok so I might have species not even reaching this point so I'm short cutting spidx automatcaly
   
   
-  if(comments) cat(sprintf("Spidx set to\n"))
+  if(comments) cat(sprintf("Corrected Spidx set to\n"))
   if (comments) print(SpIdx)
   
   for (i in SpIdx)
@@ -1957,7 +1961,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       statMS[[i]] = as.data.frame(stat) # put in the list
     }
     
-    #determine the y axis limit
+    # determine the y axis limit
     # do something here
     
     
@@ -2345,10 +2349,10 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
                    plotMatStore[[4]],plotMatStore[[5]],
                    plotMatStore[[6]],plotMatStore[[7]],plotMatStore[[8]],plotMatStore[[9]],
                    plotPPMRStore[[1]],plotPPMRStore[[2]], plotPPMRStore[[3]],
-                   plotPPMRStore[[4]], plotPPMRStore[[5]],
+                   plotPPMRStore[[4]],plotPPMRStore[[5]],
                    plotPPMRStore[[6]],plotPPMRStore[[7]],plotPPMRStore[[8]],plotPPMRStore[[9]],
                    plotDBStore[[1]],plotDBStore[[2]],plotDBStore[[3]],
-                   plotDBStore[[4]], plotDBStore[[5]],
+                   plotDBStore[[4]],plotDBStore[[5]],
                    plotDBStore[[6]],plotDBStore[[7]],plotDBStore[[8]],plotDBStore[[9]],
                    cols=3)
   }
@@ -4443,6 +4447,7 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
                        print_it = T, returnData = F, save_it = F, nameSave = paste("CohortSpecies",iSpecies,".png",sep=""))
 {
   # setting up some parameters
+  tic()
   sex_ratio = 0.5
   T = t_steps/dt; # number of time steps you want to follow cohort for
   no_sp <- dim(object@params@species_params)[1]
@@ -4451,7 +4456,6 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
   no_Phen = length(PhenIdx)
   fitness <- array(0,c(no_Phen, length(cohortSpan)), dimnames = list(PhenIdx,cohortSpan)) #collect the total spawn per time (start of cohort) per species
   names(dimnames(fitness)) <- list("species","cohort")
-  
   for (t_start in cohortSpan)
   {
     cat(sprintf("Cohort number %g\n",t_start))
@@ -4536,7 +4540,7 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
     ggtitle("orange > black")
 
   if(save_it) ggsave(plot = p, filename = nameSave)
-  
+  toc()
   if (returnData) return(fitness) else if(print_it) return(p)
 }
 
@@ -4672,7 +4676,10 @@ plotCohortLong <- function(folder, dt = 0.1, t_steps = 5, SpIdx = NULL, iSpecies
     for (i in 1:length(longSimList))
     {
       if (comments) cat(sprintf("Using run %g\n",i))
-      FitList[[i]] <- plotCohort(object = longSimList[[i]], returnData = T, iSpecies = iSpecies, t_steps = t_steps, effort = effortInit, cohortSpan = cohortSpan)
+      
+      temp<- plotCohort(object = longSimList[[i]], returnData = T, iSpecies = iSpecies, t_steps = t_steps, effort = effortInit, cohortSpan = cohortSpan)
+      temp$group <- i
+      FitList[[i]] <- temp
     }
     if (comments) cat("Plots loaded")
     
@@ -4681,7 +4688,7 @@ plotCohortLong <- function(folder, dt = 0.1, t_steps = 5, SpIdx = NULL, iSpecies
     # therefore 9 plots? 1 per species
     
     # need to divide the matrix per species, add their w_mat and then regroup sim per species
-    phenList <- list(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL) # need to do something neater
+    phenList <- vector("list",no_sp)
     for (i in 1:length(FitList))
       for (jSpecies in sort(unique(FitList[[i]]$species))) 
         phenList[[jSpecies]] <- rbind(phenList[[jSpecies]], FitList[[i]][which(FitList[[i]]$species == jSpecies),])
