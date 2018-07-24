@@ -493,7 +493,7 @@ plotDynamicsLong <- function(folder, SpIdx = NULL, comments = T, window = NULL, 
     {
       iSim <- NULL
       for (simNumber in 1:length(longSimList)) iSim <- abind(iSim,as.matrix(plotDynamics(longSimList[[simNumber]], returnData = T, SpIdx = SpIdx)), along = 3)
-      
+
       meanSp <- apply(iSim[,"value",],1, mean)
       sdSp <- apply(iSim[,"value",],1, sd)
       
@@ -1825,9 +1825,8 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   if (comments) cat("plotTraitsMulti begins\n") 
   
   if (is.null(SpIdx)) SpIdx <- seq(1,9)
-  if (comments) 
-  {cat("SpIdx set to:")
-    print(SpIdx)}
+  if(comments) cat(sprintf("Spidx set to\n"))
+  if (comments) print(SpIdx)
   
   # determine the initial maturation size for normalisation purpose
   if (Mat && is.null(Wmat))
@@ -1863,12 +1862,13 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   
   # because I am starting simulations with previous abundance but not updating the time max (because I forgot and I do not want to run all my sims again) I need to do it here (which will disapear once I do the update in model.r)
   
-  if (is.null(TimeMax)) TimeMax = 4e4 #default initialisation period
+  if (is.null(TimeMax)) TimeMax = 3e4 #default initialisation period
   TimeMax <- (SumPar$timeMax[1] + TimeMax) * dt
   for (i in 1:dim(TT)[1]) if (TT$Extinction[i] == 0) TT$Extinction[i] = TimeMax
   
   if (is.null(window)) window = c(-1,1)
   if (comments) cat(sprintf("windows set from %g to %g\n",window[1],window[2]))
+  
   # Weighted mean
   # 1) matrix of summed abundance of mature ind at each time step
   truc = object@n
@@ -1897,10 +1897,10 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
   #     SpIdx = c(SpIdx,i)
   
   # SpIdx is annoying:
-  if (length(SpIdx) > length(unique(SumPar$species))) SpIdx = unique(SumPar$species) # ok so I might have species not even reaching this point so I'm short cuting spidx automatcaly
+  if (length(SpIdx) > length(unique(SumPar$species))) SpIdx = unique(SumPar$species) # ok so I might have species not even reaching this point so I'm short cutting spidx automatcaly
   
   
-  if(comments) cat(sprintf("Spidx set to\n"))
+  if(comments) cat(sprintf("Corrected Spidx set to\n"))
   if (comments) print(SpIdx)
   
   for (i in SpIdx)
@@ -1961,7 +1961,7 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
       statMS[[i]] = as.data.frame(stat) # put in the list
     }
     
-    #determine the y axis limit
+    # determine the y axis limit
     # do something here
     
     
@@ -2349,10 +2349,10 @@ plotTraitsMulti <- function(object, print_it = F, save_it = F,dir = NULL, res = 
                    plotMatStore[[4]],plotMatStore[[5]],
                    plotMatStore[[6]],plotMatStore[[7]],plotMatStore[[8]],plotMatStore[[9]],
                    plotPPMRStore[[1]],plotPPMRStore[[2]], plotPPMRStore[[3]],
-                   plotPPMRStore[[4]], plotPPMRStore[[5]],
+                   plotPPMRStore[[4]],plotPPMRStore[[5]],
                    plotPPMRStore[[6]],plotPPMRStore[[7]],plotPPMRStore[[8]],plotPPMRStore[[9]],
                    plotDBStore[[1]],plotDBStore[[2]],plotDBStore[[3]],
-                   plotDBStore[[4]], plotDBStore[[5]],
+                   plotDBStore[[4]],plotDBStore[[5]],
                    plotDBStore[[6]],plotDBStore[[7]],plotDBStore[[8]],plotDBStore[[9]],
                    cols=3)
   }
@@ -4538,7 +4538,7 @@ plotCohort <- function(object, dt = 0.1, t_steps = 5, iSpecies = NULL, effort = 
           legend.position = "none",
           legend.key = element_rect(fill = "white"))+
     ggtitle("orange > black")
-  
+
   if(save_it) ggsave(plot = p, filename = nameSave)
   toc()
   if (returnData) return(fitness) else if(print_it) return(p)
