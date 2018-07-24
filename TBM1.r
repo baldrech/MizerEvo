@@ -90,16 +90,8 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
   # Make the MizerParams
   # MizerParams is in MizerParams-class. Use Source or something because it's freaking long.
   trait_params <- MizerParams(trait_params_df, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction) 
-  # Sort out maximum recruitment - see A&P 2009
-  # Get max flux at recruitment boundary, R_max
-  # R -> | -> g0 N0
-  # R is egg flux, in numbers per time
-  # Actual flux at recruitment boundary = RDD = NDD * g0 (where g0 is growth rate)
-  # So in our BH SRR we need R_max comparable to RDI (to get RDD)
-  # R_max = N0_max * g0 (g0 is the average growth rate of smallest size, i.e. at f0 = 0.5)
-  # N0 given by Appendix A of A&P 2010 - see Ken's email 12/08/13
-  # Taken from Ken's code 12/08/13 - equation in paper is wrong!
 
+  # Sort out maximum recruitment - see A&P 2009
   if (is.null(rm))
   {
     alpha_p <- f0 * h * beta^(2 * n - q - 1) * exp((2 * n * (q - 1) - q^2 + 1) * sigma^2 / 2)
@@ -108,7 +100,6 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
     tmpA <- w_inf[1]
     tmpB <- (log10(w_inf[length(w_inf)]) - log10(w_inf[1])) / (no_sp - 1) # Difference between logged w_infs, fine
     
-    #if (length(no_sp) == 1 ) dw_winf <-  tmpA *10
     if (no_sp == 1 ) dw_winf <-  tmpA *10
     
     else  dw_winf <- tmpB * tmpA *10^(tmpB*((1:no_sp)-1)) # ?
@@ -127,39 +118,7 @@ set_TBM <- function(no_sp = 10, # number of species #param described in Andersen
   
   return(trait_params)
 }
-# what's in it?
-#param <- set_TBM(no_sp = 3)
-#slotNames(param)
-# w: start value of each size bins of the community spectrum
-# dw: lenght of the size bin (w1+dw=w2)
-#dw_full: no idea, might a limit size for the bins
-#psi: allocation to reproduction #psi to std_metabolism are fucntion applied on w, therefore one value for each sp of each size bin
-#intake_max:
-#search_vol:
-#activity:
-#std_metab:
-#pred_kernel: huge stuff
-#rr_pp: background size spectrum growth rate (weight specific)
-#cc_pp: background size spectrum ressource carrying capacity
-#species_params: summary of the sp params. you can get the type of gear use to catch them (only one for now)
-#interaction: does the sp interact or not (I guess)
-#srr: Beverton Holt esque relationship (function) didn't know what that do
-#selectivity: does the gear catch or not depending on the sp/w
-#catchability: eeeh I dunno
 
-#summary(param)
-#use param@something to explore slots
-
-# now the projection in time
-#there are no fisheries for the moment, issue in the fMortGear
-
-#for testing purpose
-# effort = 0
-# t_max = 100
-# t_save = 1
-# dt = 0.1
-# initial_n=get_initial_n(param)
-# initial_n_pp=param@cc_pp
 
 project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial_n=get_initial_n(object), initial_n_pp=object@cc_pp, 
                      mu = 2, i_stop = NULL, resident = NULL, data = FALSE, extinct = TRUE, RMAX = TRUE, OptMutant = "M1", M3List = NULL ,
@@ -199,11 +158,7 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     effort <- effort_array
   }
   # now we have the effort check an in the array format
-  # print(class(effort))
-  # print(dim(effort))
-  # print(dimnames(effort))
-  
-  
+
   validObject(object)
   
   # Check that number and names of gears in effort array is same as in MizerParams object
@@ -278,12 +233,6 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
   sex_ratio <- 0.5
   
   # Matrices for solver
-  # Dynamics of background spectrum uses a semi-chemostat model (de Roos - ask Ken)
-  # A <- matrix(0,nrow=no_sp,ncol=no_w)
-  # B <- matrix(0,nrow=no_sp,ncol=no_w)
-  # S <- matrix(0,nrow=no_sp,ncol=no_w)
-  
-  # new version
   A = matrix(data=0, nrow=no_sp, ncol=no_w-1)
   B = matrix(data=0, nrow=no_sp, ncol=no_w)
   C = rep(0,no_w-1)
@@ -328,44 +277,39 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
   # the sim is fully initialised now, time to move forwards           
   #time projection
   
-  if (data == TRUE){
-    # arrays that gets the details of energy allocation (only works without mutants) c(as.character(seq(1:no_sp)))
-    energy <- array(dim = c(t_steps,no_sp,no_w,4), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w,c("reproAndGrowth", "spawning", "growth", "feeding")))
-    names(dimnames(energy)) <- list("Time","Species","Size","Energy")
-    rd <- array(dim = c(t_steps,no_sp,2), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp, c("RDI", "RDD")))
-    names(dimnames(rd)) <- list("Time","Species","Energy")
-    eggs <- array(dim = c(t_steps,no_sp), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp))
-    names(dimnames(eggs)) <- list("Time","Species")
-    food <-array(dim = c(t_steps,no_sp,no_w,no_w_pp), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w,dimnames(sim@n_pp)$w))
-    names(dimnames(food)) <- list("Time","Species","PredSize","PreySize")
-    death <-array(dim = c(t_steps,no_sp,no_w), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
-    names(dimnames(death)) <- list("Time","PreySp","PreySize")
-    Tdeath <-array(dim = c(t_steps,no_sp,no_w), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
-    names(dimnames(Tdeath)) <- list("Time","PreySp","PreySize")
-    Pdeath <- array(dim = c(t_steps,no_w_pp),dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n_pp)$w))
-    names(dimnames(Pdeath)) <- list("Time","PreySize")
-    trouveF <- array(dim = c(t_steps,no_sp,no_w),  dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
-    names(dimnames(trouveF)) <- list("Time","PredSp","PredSize")
-    trouveB <- array(dim = c(t_steps,no_sp,no_w),  dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
-    names(dimnames(trouveB)) <- list("Time","PredSp","PredSize")
-  }
+  # if (data == TRUE){
+  #   # arrays that gets the details of energy allocation (only works without mutants) c(as.character(seq(1:no_sp)))
+  #   energy <- array(dim = c(t_steps,no_sp,no_w,4), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w,c("reproAndGrowth", "spawning", "growth", "feeding")))
+  #   names(dimnames(energy)) <- list("Time","Species","Size","Energy")
+  #   rd <- array(dim = c(t_steps,no_sp,2), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp, c("RDI", "RDD")))
+  #   names(dimnames(rd)) <- list("Time","Species","Energy")
+  #   eggs <- array(dim = c(t_steps,no_sp), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp))
+  #   names(dimnames(eggs)) <- list("Time","Species")
+  #   food <-array(dim = c(t_steps,no_sp,no_w,no_w_pp), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w,dimnames(sim@n_pp)$w))
+  #   names(dimnames(food)) <- list("Time","Species","PredSize","PreySize")
+  #   death <-array(dim = c(t_steps,no_sp,no_w), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
+  #   names(dimnames(death)) <- list("Time","PreySp","PreySize")
+  #   Tdeath <-array(dim = c(t_steps,no_sp,no_w), dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
+  #   names(dimnames(Tdeath)) <- list("Time","PreySp","PreySize")
+  #   Pdeath <- array(dim = c(t_steps,no_w_pp),dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n_pp)$w))
+  #   names(dimnames(Pdeath)) <- list("Time","PreySize")
+  #   trouveF <- array(dim = c(t_steps,no_sp,no_w),  dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
+  #   names(dimnames(trouveF)) <- list("Time","PredSp","PredSize")
+  #   trouveB <- array(dim = c(t_steps,no_sp,no_w),  dimnames = list(c(as.character(seq(1:t_steps))),dimnames(sim@n)$sp,dimnames(sim@n)$w ))
+  #   names(dimnames(trouveB)) <- list("Time","PredSp","PredSize")
+  # }
   
   for (i_time in init:t_steps)
   {
     # if (i_time %% check_point == 0) return() # stop the simulation every 500 loop to reduce the size of the arrays and clean the extinct species
     # Do it piece by piece to save repeatedly calling methods, functions found in porject_methods.r
     phi_prey <- getPhiPrey(sim@params, n=n, n_pp=n_pp,opt = T)
-    
     feeding_level <- getFeedingLevel(sim@params, n=n, n_pp=n_pp, phi_prey=phi_prey)
     pred_rate <- getPredRate(sim@params, n=n, n_pp=n_pp, feeding_level=feeding_level)
     
-    if (!is.null(predMort)) m2 = predMort else m2 <- getM2(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate) # for cst mortality rate (I think)
-    # print(class(m2))
-    # print(dim(m2))
-    # print(dimnames(m2))
-    # print(m2)
+    if (!is.null(predMort)) m2 = predMort else m2 <- getM2(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate) # for constant mortality rate
+
     m2_background <- getM2Background(sim@params, n=n, n_pp=n_pp, pred_rate=pred_rate)
-    #print(effort_dt[i_time,])
     z <- getZ(sim@params, n=n, n_pp=n_pp, effort=effort_dt[i_time,], m2=m2) #total mortality 
     e <- getEReproAndGrowth(sim@params, n=n, n_pp=n_pp, feeding_level=feeding_level)
     e_spawning <- getESpawning(sim@params, n=n, n_pp=n_pp, e=e)
@@ -373,47 +317,8 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     rdi <- getRDI(sim@params, n=n, n_pp=n_pp, e_spawning=e_spawning, sex_ratio=sex_ratio)
     rdd <- getRDD(sim@params, n=n, n_pp=n_pp, rdi=rdi, sex_ratio=sex_ratio)
     
-    # Iterate species one time step forward:
-    # A[,idx] <- sweep(-e_growth[,idx-1,drop=FALSE]*dt, 2, sim@params@dw[idx], "/") 
-    # # idx start at 2, the -1 makes it include the first column # the "-" makes all the value negative and *dt reduce accordingly to one time step
-    # # the operation takes the first column of e_growth and divide it by the first column of sim@params@dw (which is in reality the secon one because of the idx-1)
-    # #the result is a negative value placed in the second column of A (dw is small so dividing by it makes a big number)
-    # 
-    # B[,idx] <- 1 + sweep(e_growth[,idx,drop=FALSE]*dt,2,sim@params@dw[idx],"/") + z[,idx,drop=FALSE]*dt
-    # # in this one, with start with the second column of e_growth, divided by the same of sim@params@dw
-    # # why m2 pos? # I think it's the sum of everything that leaves w, hence the growth that goes in the next and predation
-    # 
-    # S[,idx] <- n[,idx,drop=FALSE]
-    # # Boundary condition upstream end (recruitment), add values to the first column that stayed empty
-    # 
-    # B[w_min_idx_array_ref] <- 1+e_growth[w_min_idx_array_ref]*dt/sim@params@dw[sim@params@species_params$w_min_idx]+z[w_min_idx_array_ref]*dt
-    # 
-    # # Update first size group of n
-    # #actual value + density dependent reproduction by dt / dw (bins size) / first column of B
-    # if (RMAX == FALSE)  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdi*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref] #changed rdd to rdi
-    # else  n[w_min_idx_array_ref] <- (n[w_min_idx_array_ref] + rdd*dt/sim@params@dw[sim@params@species_params$w_min_idx]) / B[w_min_idx_array_ref]
-    # # print("rmax")
-    # # print(sim@params@species_params$r_max)
-    # # 
-    # # print("rdi")
-    # # print(rdi)
-    # # print("rdd")
-    # # print(rdd)
-    # # 
-    # # print("dt machin")
-    # # print(dt/sim@params@dw[sim@params@species_params$w_min_idx])
-    # # 
-    # # print("B")
-    # # print(B[w_min_idx_array_ref])
-    # # Invert matrix
-    # for (i in 1:no_sp)
-    #   for (j in (sim@params@species_params$w_min_idx[i]+1):no_w) # the 2 loops sweep all the matrix n, change the whole n array at one time step, start at 2
-    #     n[i,j] <- (S[i,j] - A[i,j]*n[i,j-1]) / B[i,j]
-    
-    # new version
-    #
     # Set up matrix:
-    #
+    
     for (iSpecies in 1:no_sp) {
       A[iSpecies, ] <- -e_growth[iSpecies, 1:(no_w-1)]*dt/sim@params@dw[2:no_w]
       B[iSpecies, ] <- 1 + dt*(e_growth[iSpecies,]/sim@params@dw + z[iSpecies,])
@@ -423,23 +328,13 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
       else S[iSpecies, 1] <- n[iSpecies, 1] + rdi[iSpecies]*dt/sim@params@dw[1]
     }
     
-    #
     # Invert matrix:
-    #
+    
     for (iSpecies in 1:no_sp) {
       n[iSpecies,] <- Solve.tridiag(A[iSpecies,],B[iSpecies,],C,S[iSpecies,])
     }
     
-
-    
-    
-    
-    
-    
-    
-
-    
-    # extinction part
+    # Extinction time
     if (extinct == TRUE)
     {
       extinction = 1e-30
@@ -491,9 +386,6 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
         umbrella = TRUE # if this is true, evrything is dead
     }
     
-    #why the -A ? why not directly construct A the right way?
-    #here, B = S -A*n(-1) +e_growth + m2, it's like the total of everything and we get the portion that stay in the bin ?
-    
     # Dynamics of background spectrum uses a semi-chemostat model (de Roos - ask Ken)
     tmp <- (sim@params@rr_pp * sim@params@cc_pp / (sim@params@rr_pp + m2_background))
     n_pp <- tmp - (tmp - n_pp) * exp(-(sim@params@rr_pp+m2_background)*dt)
@@ -517,18 +409,18 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     }
     
     # getting the energy allocation data
-    if (data == TRUE)
-    {
-      energy[i_time, ,, ] =  cbind(e, e_spawning, e_growth,feeding_level)
-      rd[i_time,,] = cbind(rdi,rdd)
-      eggs[i_time,] = n[w_min_idx_array_ref]
-      food[i_time,,,] = pred_rate
-      death[i_time,,] = m2
-      Tdeath[i_time,,] = z
-      Pdeath[i_time,] = m2_background
-      trouveF[i_time,,] = phi[[1]]
-      trouveB[i_time,,] = phi[[2]]
-    }
+    # if (data == TRUE)
+    # {
+    #   energy[i_time, ,, ] =  cbind(e, e_spawning, e_growth,feeding_level)
+    #   rd[i_time,,] = cbind(rdi,rdd)
+    #   eggs[i_time,] = n[w_min_idx_array_ref]
+    #   food[i_time,,,] = pred_rate
+    #   death[i_time,,] = m2
+    #   Tdeath[i_time,,] = z
+    #   Pdeath[i_time,] = m2_background
+    #   trouveF[i_time,,] = phi[[1]]
+    #   trouveB[i_time,,] = phi[[2]]
+    # }
     
     
     # MUTANT TIME
@@ -623,45 +515,45 @@ project <-  function(object, effort=0,  t_max = 100, t_save=0.1, dt=0.1, initial
     
     
     
-    if (mute == TRUE & i_time!=t_steps) { # mutation rate egg dependent # if  Iget a mutant on last time step I get bugs because the sim restart at last +1 time step
+    if (mute == TRUE & i_time != t_steps) {
+      # mutation rate egg dependent # if  Iget a mutant on last time step I get bugs because the sim restart at last +1 time step
       # save the data
       sim_stop = sim
       # I need to get rid of the first or last line for no overlapping
       # it will be the first (initial conditions of this sim), but only after the first mutation
       # t_init +1 is the line number of the initialisation
-      if (missing(i_stop) == FALSE) sim_stop@n[t_init+1,,]<- NA # if it's not the first run, delete the initialisation (first line where the mutant is introduce, easier for pasting later)
+      if (missing(i_stop) == FALSE)
+        sim_stop@n[t_init + 1, , ] <-
+          NA # if it's not the first run, delete the initialisation (first line where the mutant is introduce, easier for pasting later)
       
       i_stop = i_time  # to conserve the time of the projection to restart later
-      stopList <- list(sim_stop, i_stop, resident,n,n_pp)
-      names(stopList) <- c("data", "i_stop", "resident","n","n_pp")
+      stopList <- list(sim_stop, i_stop, resident, n, n_pp)
+      names(stopList) <- c("data", "i_stop", "resident", "n", "n_pp")
       
-      if(length(stopList)!=5) cat(sprintf("error in stop list, length is %i\n",length(stopList)))
+      if (length(stopList) != 5)
+        cat(sprintf("error in stop list, length is %i\n", length(stopList)))
       # now I need to leave the projection and keep resident, i_stop and sim_stop
       if (multiple == FALSE)
       {
-        if (print_it) cat(sprintf(
-          "A mutant from species %s has appeared at time %s\n",
-          resident,
-          i_time
-        ))}
+        if (print_it)
+          cat(sprintf(
+            "A mutant from species %s has appeared at time %s\n",
+            resident,
+            i_time
+          ))
+      }
       
-      else 
+      else
       {
-        if (print_it) cat(sprintf(
-          "Mutants from species %s have appeared at time %s\n",
-          resident,
-          i_time
-        ))}
-      
-      
-      
+        if (print_it)
+          cat(sprintf(
+            "Mutants from species %s have appeared at time %s\n",
+            resident,
+            i_time
+          ))
+      }
       return(stopList)
-      
-      
     }  
-    
-    
-    
   }
   # and end
   if (missing(i_stop) == FALSE) sim@n[t_init+1,,]<- NA # need to get rid of the initialisation for the last run before exiting

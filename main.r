@@ -82,8 +82,6 @@ simulationVec <- c(10)
 #for (i in i_start:no_sim)
 for (i in simulationVec)
 {
-
-  
   # switch(i,
   #        "1" = {mu = 0.01},
   #        "2" = {mu = 0.1},
@@ -95,8 +93,6 @@ for (i in simulationVec)
   #        {})
   
 
-  
-  
   tic()
   cat(sprintf("Simulation number %g\n",i))
   path_to_save = paste(getwd(),file_name,"/init/run", i, sep = "")
@@ -106,9 +102,9 @@ for (i in simulationVec)
                  ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
                  kappa = kappa,
                  OptMutant = "M5", mAmplitude = mAmplitude, mu= mu,
-  effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
-  save_it = T, path_to_save = path_to_save,
-  print_it = T, normalFeeding = F, Traits = "eta")
+                 effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
+                 save_it = T, path_to_save = path_to_save,
+                 print_it = T, normalFeeding = F, Traits = "eta")
   
   #rm(sim)
   for (j in 1:20) gc()
@@ -173,7 +169,7 @@ for (i in i_start:length(dirContent))
     path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
     
     cat(sprintf("Using %s\n",i))
-    
+
     output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                    max_w_inf = max_w_inf, RMAX = RMAX, 
                    ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
@@ -187,30 +183,32 @@ for (i in i_start:length(dirContent))
   }
 }
 
+# Varying effort
+
 for (i in i_start:length(dirContent))
 {
   for (effort in c(seq(0.1,0.7,0.1),0.9,1))
-{
-
-  
-  if (file.exists(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = ""))) 
   {
-    sim <- get(load(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = "")))
-    path_to_save <- paste(folder,"/fisheries/effort",effort,"/",dirContent[i],sep = "")
-
-    cat(sprintf("Using %s\n",i))
     
-    output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
-                      max_w_inf = max_w_inf, RMAX = RMAX, 
-                      ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff, kappa = kappa,
-                      OptMutant = "M5", mAmplitude = mAmplitude, mu= mu, initCondition = sim,
-                      effort = effort, knife_edge_size = knife_edges, gear_names = gear_names, 
-                      save_it = T, path_to_save = path_to_save,
-                      print_it = T, normalFeeding = F, Traits = "eta")
-    rm(output)
-    for (j in 1:20) gc()
+    
+    if (file.exists(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = ""))) 
+    {
+      sim <- get(load(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = "")))
+      path_to_save <- paste(folder,"/fisheries/effort",effort,"/",dirContent[i],sep = "")
+      
+      cat(sprintf("Using %s\n",i))
+      
+      output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
+                        max_w_inf = max_w_inf, RMAX = RMAX, 
+                        ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff, kappa = kappa,
+                        OptMutant = "M5", mAmplitude = mAmplitude, mu= mu, initCondition = sim,
+                        effort = effort, knife_edge_size = knife_edges, gear_names = gear_names, 
+                        save_it = T, path_to_save = path_to_save,
+                        print_it = T, normalFeeding = F, Traits = "eta")
+      rm(output)
+      for (j in 1:20) gc()
+    }
   }
-}
 }
 
 
@@ -1058,9 +1056,9 @@ ggplot(TRUC)+
 
 
 # egg interference
-I = exp(-(log(mi/mj)^2)/2*sigma^2)
+# I = exp(-(log(mi/mj)^2)/2*sigma^2)
 
-f= I *sum(vol search rate * n * dw ) of w
+# f= I *sum(vol search rate * n * dw ) of w
 
 n_total_in_size_bins <- sweep(n, 2, object@dw, '*')
 object@search_vol*n_total_in_size_bins

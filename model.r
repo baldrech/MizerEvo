@@ -474,16 +474,18 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     
     # At this stage, the paramDF does not remember phenotypes that appeared and went extinct in the same run, but the interaction matrix does
     # Lazy/easy way -> get rid of them in the interaction matrix as well
-    # print(1)
-    # print(dim(interactionSave))
-    # print(rownames(interactionSave))
     interactionSave <- interactionSave[as.numeric(rownames(interactionSave)) %in% SummaryParams$ecotype,as.numeric(rownames(interactionSave)) %in% SummaryParams$ecotype]
+    
+    # to check for bugs
     # print(2)
     # print(dim(interactionSave))
     # print(rownames(interactionSave))
+    # print(3)
+    # print(dim(SummaryParams))
+    # print(SummaryParams$ecotype)
     # Update all the other param from the dataframe
     FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
-    # print(3)
+    # print(4)
     #return(list(allRun,FinalParam))
     
     # handle and save the final data

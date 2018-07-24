@@ -8,48 +8,14 @@ myData <- readRDS("fitnessNoInter92Long.rds")
 
 
 
-# Let's play with the data
-# myData is a list of normal fitness (1) et fisheries fitness(2)
-# inside each list are 9 matrix, one per species, so I lost my multiple sims on the way
-
-
-#plot_dat <- myData[[1]][[1]] # fitness of all the phenotypes across sims of species 1
-
-plot_dat <- as.data.frame(myData[[2]][[4]])
-plot_dat$species <- NULL
-
-b <- plot_dat[!rowSums(plot_dat) == plot_dat$w_mat,]
-b[b==0] <- NA
-
-a <- melt(b, id = "w_mat")
-
-a$variable <- as.numeric(as.character(a$variable))
-
-colfunc <- colorRampPalette(c("black", "orange"))
-colGrad <- colfunc(length(unique(a$w_mat)))
-
-ggplot(a) +
-  geom_line(aes(x=as.numeric(variable),y=value,group = as.factor(w_mat), color = as.factor(w_mat))) +
-  scale_y_continuous(trans = "log10") +
-  scale_x_continuous(name = "Time") +
-  scale_color_manual(name = "w_mat", values = colGrad)+
-  geom_vline(xintercept = 3000, linetype = "dashed") +
-  theme(legend.title=element_text(),
-        panel.background = element_rect(fill = "white", color = "black"),
-        panel.grid.minor = element_line(colour = "grey92"),
-        legend.justification=c(1,1),
-        legend.position = "none",
-        legend.key = element_rect(fill = "white"))+
-  ggtitle(NULL)
-
 ### multiplot (species per time) ###
 
 fishStart = 3000
-folder = paste(getwd(),"/SimNoInter92",sep="")
-no_sp = 3
+folder = paste(getwd(),"/SimDefault",sep="")
+no_sp = 9
 plotSpList <- vector("list",no_sp)
 counterSp = 0
-for(iSpecies in c(1,6,9)) #c(1,6)) #
+for(iSpecies in seq(1:no_sp)) #c(1,6,9)) #
 {
   counterSp = counterSp +1
   myMat <- as.data.frame(myData[[1]][[iSpecies]])
@@ -109,7 +75,7 @@ for(iSpecies in c(1,6,9)) #c(1,6)) #
   plotSpList[[counterSp]] <- plotTimeList
 }
 
-png(filename=paste(folder,"/FitnessLongSum.png",sep=""), width = (8*(length(plotSpList[[1]]))), height = (8*(length(plotSpList))), units = "cm",res = 600)
+png(filename=paste(folder,"/Fitness.png",sep=""), width = (8*(length(plotSpList[[1]]))), height = (8*(length(plotSpList))), units = "cm",res = 600)
 
 grid.newpage() 
 pushViewport(viewport(layout = grid.layout(nrow=length(plotSpList), ncol=length(plotSpList[[1]]), 
@@ -121,6 +87,8 @@ for(i in 1:length(plotSpList))
     print(plotSpList[[i]][[j]], vp = viewport(layout.pos.row = i, layout.pos.col = j))
 
 dev.off()
+
+
 
 # paste data together
 myData1 <- readRDS("fitnessMat5.rds")
@@ -171,7 +139,14 @@ for(iList in 1:length(myData1))
     }
     
     fitnessList[[iList]][[jList]] <- fitnessMat
-
+    
+    
+    
+    
+    
+    
+    
+    
   }
 }
 saveRDS(fitnessList,"fitnessData.rds")
@@ -179,8 +154,8 @@ fitnessList <- readRDS("fitnessData.rds")
 myData <- fitnessList
 
 
-# other plots
 
+# I don't know
 a <- get(load("SimDefault/init/run1/run.Rdata"))
 b <- plotCohort(a,t_steps = 1, cohortSpan = c(1000,2000),returnData = T)
 b$group <- 3
@@ -384,4 +359,3 @@ ggplot(plot_dat_time) +
         legend.key = element_rect(fill = "white"))+
   ggtitle("Species 9")
 ggsave("fitness5500yr.png")
-
