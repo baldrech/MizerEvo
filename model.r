@@ -134,72 +134,72 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         # Generate phenotypes pool
         for (iPhenotype in seq(1, initPool))
         {
-        mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
-        while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
-        
-        switch(Traits,
-               size = {
-                 # Trait = asymptotic size
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
-                 mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
-                 mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
-                 mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
-               },
-               beta = {
-                 # Trait = PPMR
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
-                 mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
-                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
-               },
-               sigma = {
-                 # Trait = fedding kernel
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
-                 mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
-                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
-               },
-               eta = {
-                 # Trait = eta
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
-                 mutant$eta <- mutant$eta + rnorm(1, 0, sd) # change a bit eta
-                 mutant$w_mat <- mutant$w_inf * mutant$eta # update
-               },
-               all = {
-                 # Trait = asymptotic size
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
-                 mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
-                 mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
-                 mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
-                 # Traits = predation
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
-                 mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
-                 sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
-                 mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
-                 # calculate the new gamma
-                 alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
-                 mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
-               },
-               {
-                 print("Trait specified is not in the list")
-               })
-
-        # integrate the mutant in the df 
-        rownames(mutant) = mutant$ecotype
-        param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
-        
-        #mutant abundance
-        n_mutant <- rep(0,no_w)
-        #n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes randomly
-        #n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
-
-        #n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
-        n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
-        rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
-        
-        # need to change the interaction matrix
-        interaction <- rbind(interaction,interaction[which(rownames(param@interaction) == iSpecies),])
-        interaction <- cbind(interaction,interaction[,which(colnames(param@interaction) == iSpecies)])
+          mutant <- param@species_params[param@species_params$ecotype == iSpecies,] # perfect copy
+          while (mutant$ecotype %in% nameList) mutant$ecotype = as.numeric(paste(mutant$species,sample(seq(1:1e5),1),sep="")) # take 5 random digits to follow the digit species identity as a name
+          
+          switch(Traits,
+                 size = {
+                   # Trait = asymptotic size
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                   mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
+                   mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
+                   mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
+                 },
+                 beta = {
+                   # Trait = PPMR
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                 },
+                 sigma = {
+                   # Trait = fedding kernel
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                 },
+                 eta = {
+                   # Trait = eta
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$eta)
+                   mutant$eta <- mutant$eta + rnorm(1, 0, sd) # change a bit eta
+                   mutant$w_mat <- mutant$w_inf * mutant$eta # update
+                 },
+                 all = {
+                   # Trait = asymptotic size
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$w_inf)
+                   mutant$w_inf <- mutant$w_inf + rnorm(1, 0, sd) # change a bit the asymptotic size
+                   mutant$w_mat <- mutant$w_inf * eta # calculate from the new w_inf value
+                   mutant$z0 <- z0pre * as.numeric(mutant$w_inf) ^ (n - 1) # if I don't put as.numeric I lose the name z0
+                   # Traits = predation
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$beta)
+                   mutant$beta <- mutant$beta + rnorm(1, 0, sd) # change a bit the PPMR
+                   sd = as.numeric(mAmplitude *  param@species_params[which(param@species_params$ecotype == iSpecies),]$sigma)
+                   mutant$sigma <- mutant$sigma + rnorm(1, 0, sd) # change a bit the diet breadth
+                   # calculate the new gamma
+                   alpha_e <- sqrt(2 * pi) * mutant$sigma * mutant$beta ^ (lambda - 2) * exp((lambda - 2) ^ 2 * mutant$sigma ^ 2 / 2)
+                   mutant$gamma <- h * f0 / (alpha_e * kappa * (1 - f0))
+                 },
+                 {
+                   print("Trait specified is not in the list")
+                 })
+          
+          # integrate the mutant in the df 
+          rownames(mutant) = mutant$ecotype
+          param@species_params <- rbind(param@species_params, mutant) #include the mutant in the dataframe
+          
+          #mutant abundance
+          n_mutant <- rep(0,no_w)
+          #n_mutant = runif(1,0.01,0.5) / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes randomly
+          #n_mutant = 0.5 / initPool * n_init[iSpecies,] # 50% of the initial species is allocated to the phenotypes evenly
+          
+          #n_init[iSpecies,] = n_init[iSpecies,] - n_mutant # Witdraw the abundance of the mutant from its parent (we're not talking about eggs here but different ecotype already present)
+          n_init <- rbind(n_init,n_mutant) # this include the new mutant as last column
+          rownames(n_init)[length(rownames(n_init))] <- rownames(mutant) # update the name of the mutant accordingly
+          
+          # need to change the interaction matrix
+          interaction <- rbind(interaction,interaction[which(rownames(param@interaction) == iSpecies),])
+          interaction <- cbind(interaction,interaction[,which(colnames(param@interaction) == iSpecies)])
         }
       }
     }
@@ -208,7 +208,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     
     # Recreate the "param" object needed for the projection
     param <- MizerParams(param@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
-  
+    
     # redistribute the abundance of the phenotypes more randomly
     template <- n_init[1:no_sp,]
     for (iSpecies in 1:no_sp) # for every species
@@ -223,16 +223,16 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       for(iPhen in which(param@species_params$species == iSpecies))
       {
         position = position + 1
-      n_init[iPhen,] <- template[iSpecies,] * biomFrac[position]
+        n_init[iPhen,] <- template[iSpecies,] * biomFrac[position]
       }
     }
-
-    }
+    
+  }
   else 
   {
     Nparam <- initCondition@params@species_params[initCondition@params@species_params$extinct == F,] # take the sp not extinct at start the sim
     interaction <- initCondition@params@interaction[which(rownames(initCondition@params@interaction) %in% Nparam$ecotype),which(colnames(initCondition@params@interaction) %in% Nparam$ecotype)] # take the interaciton matrix of non-extinct species
- 
+    
     for (i in unique(Nparam$species)) Nparam[which(Nparam$species == i),]$knife_edge_size <- knife_edge_size[i] # update knife edge
     
     Nparam$timeMax = no_run * t_max / dt # update the time max of the sim /// start from beginning
@@ -295,7 +295,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           mutant <- resident_params # create a perfect copy
           mutant$pop = sim$i_stop + (j-1)*t_max/dt # what i_time does the mutant appear
           mutant$run = j
-
+          
           mutant$ecotype =  as.numeric(unlist(strsplit(as.character(resident), "")))[1] # take the first digit of the parent name (species identity)
           if(!is.numeric(mutant$ecotype))
           {
@@ -373,12 +373,12 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
           interaction <- cbind(interaction,interaction[,which(colnames(sim$data@params@interaction) == resident)])
           rownames(interaction) <- sim$data@params@species_params$ecotype
           colnames(interaction) <- rownames(interaction)
-
+          
           interactionSave <- rbind(interactionSave,interactionSave[which(rownames(sim$data@params@interaction) == resident),])
           interactionSave <- cbind(interactionSave,interactionSave[,which(colnames(sim$data@params@interaction) == resident)])
           rownames(interactionSave)[length(rownames(interactionSave))] <- mutant$ecotype
           colnames(interactionSave)[length(colnames(interactionSave))] <- mutant$ecotype
-
+          
           if(sum(colnames(interaction) %in% rownames(interaction)) != dim(interaction)[1])
           {
             cat(sprintf("interaction names are wrong\n"))
@@ -392,7 +392,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
             print(colnames(interaction))
             print(colnames(interactionSave))
           }
-
+          
           # Recreate the "param" object needed for the projection
           trait_params <- MizerParams(sim$data@params@species_params, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interaction)
           
@@ -437,7 +437,7 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
         #allData[[length(allData)]] = NULL # delete the last half run
         return(allData)
       }
-
+      
       # now allData has all the successive runs, lets stitch them
       biomass <- stitch(allData) # biomass is a list of n and n_pp
       
@@ -452,14 +452,8 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
       Nparam = sim@params@species_params[sim@params@species_params$extinct == F,]
       
       # need to change the interaction matrix as well
-      print(1)
-      print(interaction)
       if(sum(sim@params@species_params$extinct != F)>0) interaction = interaction[-c(which(sim@params@species_params$extinct != F)),-c(which(sim@params@species_params$extinct != F))] #get rid of the lines in the interaction matrix when species are extinct
-      print(2)
-      print(interaction)
       param <- MizerParams(Nparam, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau,interaction = interaction)
-      print(3)
-      print(param@interaction)
       spIndex = as.character(Nparam$ecotype)
       n_init = sim@n[dim(sim@n)[1],spIndex,]
       n_pp_init = sim@n_pp[dim(sim@n)[1],]
@@ -477,10 +471,19 @@ myModel <- function(no_sp = 10, # number of species #param described in Andersen
     a <- a[order(a$ecotype, a$extinct, decreasing=TRUE),] # weird 3 lines to get rid of duplicates and keep the ones with the extinction value
     a <- a[!duplicated(a$ecotype),]
     SummaryParams = a[order(a$pop,a$ecotype),]
+    
+    # At this stage, the paramDF does not remember phenotypes that appeared and went extinct in the same run, but the interaction matrix does
+    # Lazy/easy way -> get rid of them in the interaction matrix as well
+    # print(1)
+    # print(dim(interactionSave))
+    # print(rownames(interactionSave))
+    interactionSave <- interactionSave[as.numeric(rownames(interactionSave)) %in% SummaryParams$ecotype,as.numeric(rownames(interactionSave)) %in% SummaryParams$ecotype]
+    # print(2)
+    # print(dim(interactionSave))
+    # print(rownames(interactionSave))
     # Update all the other param from the dataframe
-    print(4)
     FinalParam <- MizerParams(SummaryParams, max_w=max_w, no_w = no_w, min_w_pp = min_w_pp, w_pp_cutoff = w_pp_cutoff, n = n, p=p, q=q, r_pp=r_pp, kappa=kappa, lambda = lambda, normalFeeding = normalFeeding, tau = tau, interaction = interactionSave)
-    print(5)
+    # print(3)
     #return(list(allRun,FinalParam))
     
     # handle and save the final data
