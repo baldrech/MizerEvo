@@ -2,6 +2,7 @@
 
 #setting things up -----------------------
 rm(list = ls())
+require(scales)
 require(ggplot2)#because always need these two
 require(reshape2)
 require(plyr)# for aaply
@@ -29,8 +30,8 @@ source("utility.r") # helpful functions
 # a@params@species_params$r_max
 
 # multi species simulations ----------
-file_name = "/Sensitivity/Effort"
-
+file_name = "/Sim9"
+noInter = F
 # PARAMETERS
 # physio
 no_sp = 9
@@ -39,36 +40,49 @@ max_w_inf <- 1e5
 RMAX = T
 w_inf <- 10^seq(from=log10(min_w_inf), to = log10(max_w_inf), length=no_sp) # for fisheries gear
 
+# varying param
+# parameters worth checking: h, ks, z0pre, sigma, beta, f0, erepro, w_pp_cutoff
+# defaults
+h = 85
+ks = 4
+z0pre = 2
+sigma = 1
+beta = 100
+f0 = 0.5
+erepro = 1
+w_pp_cutoff = 1
+interaction = 0.5
+overlap = 0.5
+eta = 0.25
+mAmplitude = 0.2
+mu=1
+kappa = 0.05
+
+if(noInter)
+{
+  w_pp_cutoff = 1e5
+  interaction = 0
+  overlap = 0
+  kappa = 0.5
+}
+
+# fisheries
+gear_names <- rep("FishingStuff", no_sp)
+knife_edges <- w_inf * eta 
 
 
 # other
 t_max = 50
 no_run = 60
-no_sim = 5
+no_sim = 10
 i_start = 1
-
+# or
+simulationVec <- c(10)
 # initialisation phase (4000 yr)
-for (i in i_start:no_sim)
+#for (i in i_start:no_sim)
+for (i in simulationVec)
 {
-  # parameters worth checking: h, ks, z0pre, sigma, beta, f0, erepro, w_pp_cutoff
-  # defaults
-  h = 85
-  ks = 4
-  z0pre = 2
-  sigma = 1
-  beta = 100
-  f0 = 0.5
-  erepro = 1
-  w_pp_cutoff = 1
-  interaction = 0.5
-  overlap = 0.5
-  eta = 0.25
-  mAmplitude = 0.2
-  mu=1
-  
-  # fisheries
-  gear_names <- rep("FishingStuff", no_sp)
-  knife_edges <- w_inf * eta 
+
   
   # switch(i,
   #        "1" = {mu = 0.01},
@@ -90,12 +104,13 @@ for (i in i_start:no_sim)
   sim <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                  max_w_inf = max_w_inf, RMAX = RMAX, 
                  ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
+                 kappa = kappa,
                  OptMutant = "M5", mAmplitude = mAmplitude, mu= mu,
   effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
   save_it = T, path_to_save = path_to_save,
   print_it = T, normalFeeding = F, Traits = "eta")
   
-  rm(sim)
+  #rm(sim)
   for (j in 1:20) gc()
   toc()
 }
@@ -103,9 +118,10 @@ for (i in i_start:no_sim)
 
 folder <- paste(getwd(),file_name,sep="")
 initFolder <- paste(folder,"/init",sep="")
-dirContent <- dir(initFolder)
+dirContent <- dir(initFolder)[1:11]
+#dirContent <- "run4"
 no_run = 60
-
+i_start = 2
 # NO fisheries
 for (i in i_start:length(dirContent))
 {
@@ -123,9 +139,12 @@ for (i in i_start:length(dirContent))
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/normal/",dirContent[i],sep = "")
     
+    cat(sprintf("Using %s\n",i))
+    
     output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                    max_w_inf = max_w_inf, RMAX = RMAX, 
                    ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
+                   kappa = kappa,
                    OptMutant = "M5", mAmplitude = mAmplitude, mu = mu, initCondition = sim,
                    effort = 0, #knife_edge_size = knife_edges, gear_names = gear_names, 
                    save_it = T, path_to_save = path_to_save,
@@ -135,6 +154,7 @@ for (i in i_start:length(dirContent))
   }
 }
 # Fisheries
+dirContent <- "run6"
 for (i in i_start:length(dirContent))
 {
   # switch(i,
@@ -152,9 +172,12 @@ for (i in i_start:length(dirContent))
     sim <- get(load(paste(initFolder,"/",dirContent[i],"/run.Rdata",sep = "")))
     path_to_save <- paste(folder,"/fisheries/",dirContent[i],sep = "")
     
+    cat(sprintf("Using %s\n",i))
+    
     output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                    max_w_inf = max_w_inf, RMAX = RMAX, 
                    ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
+                   kappa = kappa,
                    OptMutant = "M5", mAmplitude = mAmplitude, mu= mu, initCondition = sim,
                    effort = 0.8, knife_edge_size = knife_edges, gear_names = gear_names, 
                    save_it = T, path_to_save = path_to_save,
@@ -166,19 +189,20 @@ for (i in i_start:length(dirContent))
 
 for (i in i_start:length(dirContent))
 {
-  for (effort in seq(0.1,1,0.1))
+  for (effort in c(seq(0.1,0.7,0.1),0.9,1))
 {
 
   
   if (file.exists(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = ""))) 
   {
     sim <- get(load(paste(initFolder,"/",dirContent[1],"/run.Rdata",sep = "")))
-    path_to_save <- paste(folder,"/fisheries/",dirContent[i],"/effort",effort,sep = "")
+    path_to_save <- paste(folder,"/fisheries/effort",effort,"/",dirContent[i],sep = "")
 
+    cat(sprintf("Using %s\n",i))
     
     output <- myModel(no_sp = no_sp, eta = eta, t_max = t_max, no_run = no_run, min_w_inf = min_w_inf,extinct = T, 
                       max_w_inf = max_w_inf, RMAX = RMAX, 
-                      ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff,
+                      ken = F, initTime = 1, initPool = 9, ks = ks, z0pre = z0pre, f0 = f0, overlap = overlap, sigma = sigma, beta = beta, w_pp_cutoff = w_pp_cutoff, kappa = kappa,
                       OptMutant = "M5", mAmplitude = mAmplitude, mu= mu, initCondition = sim,
                       effort = effort, knife_edge_size = knife_edges, gear_names = gear_names, 
                       save_it = T, path_to_save = path_to_save,
