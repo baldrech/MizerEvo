@@ -15,3 +15,5 @@ the different plots are in plotFunction.r but not well explained
 
 good luck!
 R
+
+Point people towards MizerEvolution package
