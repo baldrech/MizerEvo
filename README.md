@@ -27,3 +27,4 @@ Romain Forestier
 P.S. I am developing a formal R extension of this model to work with mizer2.0 and updates. 
 Work in progress here:
 https://github.com/baldrech/mizerEvolution
+
