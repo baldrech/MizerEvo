@@ -13,7 +13,4 @@ to check all the parameters go to myModel.r
 obs: the canibalism parameters now determine the value in the whole interaction matrix, not just the diagonal.
 the different plots are in plotFunction.r but not well explained
 
-good luck!
-R
-
-Point people towards MizerEvolution package
+This code has now been developped into an R package called mizerEvolution (https://github.com/baldrech/mizerEvolution) working with the latest version of mizer (https://github.com/gustavdelius/mizer)
